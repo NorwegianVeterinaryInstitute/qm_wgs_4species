@@ -1,0 +1,17 @@
+.Rdata
+*.Rproj
+.Rhistory
+.Rproj.user/
+*.xlsx
+data/
+fix_id.R
+*.tiff
+*eps
+*jpg
+*png
+mlst_profiles.txt
+mlst_profiles2.txt
+mlst_species.txt
+mlst_species2.txt
+total_data.txt
+id.txt
