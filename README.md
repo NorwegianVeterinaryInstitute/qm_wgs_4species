@@ -1,5 +1,4 @@
-# Comparative genomics of whole genome sequenced E. coli isolates from 
-# four different animal species
+# Comparative genomics of whole genome sequenced E. coli isolates from four different animal species
 
 ## Information
 Github page for WGS article
