@@ -161,8 +161,8 @@ ggplot(sequence_data, aes(as.numeric(`R1-1`)))+
 ```{r ARIBA analysis, include = FALSE}
 megares_report_loc <- "../data/ariba/megares_results"
 resfinder_report_loc <- "../data/ariba/resfinder_results"
-ac_genes <- c("qnr","oqx")
-mut_genes <- c("gyr","par","marR","soxR","acrR")
+ac_genes <- c("qnr","oqx","qep")
+mut_genes <- c("gyr","par","marR","soxR","acrR","mcb")
 
 # adjust parameters for filtering
 if (length(ac_genes) == 1) {
@@ -773,6 +773,33 @@ suppressWarnings(clean_mut_data %>%
   rename("Mutation" = mut))
 ```
 
+## Total combinations
+```{r}
+test <- acquired_report %>%
+  left_join(mut_quant[c("gyrA","gyrB","parC","parE","id")], by = "id") %>%
+  left_join(mut_report[c("marR","id")], by = "id") %>%
+  left_join(mic_data[c("id","CIP","NAL")], by = "id") %>%
+  left_join(isolate_data[c("id","species")], by = "id") %>%
+  select(-id) %>%
+  group_by_at(vars(-c(CIP, NAL))) %>%
+  summarise(CIP = ifelse(min(as.numeric(CIP)) == max(as.numeric(CIP)),
+                         as.character(median(as.numeric(CIP))),
+                         paste(min(as.numeric(CIP)), max(as.numeric(CIP)), sep = " - ")),
+            NAL = ifelse(min(as.numeric(NAL)) == max(as.numeric(NAL)),
+                         as.character(median(as.numeric(NAL))),
+                         paste(min(as.numeric(NAL)), max(as.numeric(NAL)), sep = " - ")),
+            n = n()) %>%
+  rowwise() %>%
+  mutate(Total = 285,
+         Percent = round(n/Total * 100,1),
+         lwr = round(get_binCI(n, Total)[1],1),
+         upr = round(get_binCI(n, Total)[2],1),
+         "95 % CI" = paste("[", lwr, "-", upr, "]")) %>%
+  select(-c(lwr, upr, Total))
+```
+
+
+
 ## Significant differences between resistance mechanisms for each animal species
 ```{r, warning = F, message = F}
 AddCol <- function(df, col_name) {
@@ -1018,7 +1045,26 @@ acquired_report %>%
 ```
 
 ## Total resistance mechanisms per animal species
-```{r, warning=F, message=F}
+```{r, warning=F, message=F, fig.height=8, fig.width=12}
+AddCol <- function(df, col_name) {
+  # split rows by delimeters
+  string_to_proc <- df %>% select(!!col_name) %>%
+    unlist() %>% str_split(regex("\\, |\\,")) 
+  # find unique entries
+  unique_strings <- string_to_proc %>%
+    unlist() %>% unique()
+  # construct names of the new columns
+  cols_names <- paste(col_name, unique_strings, sep = "_")
+  # construct 0/1-content columns for each unique entry
+  cols_content <- sapply(function(i) {
+    as.integer(unlist(lapply(function(Z) any(Z %in% unique_strings[i]), 
+                             X = string_to_proc)))
+  }, X = seq_along(unique_strings))
+  res <- data.frame(cols_content)
+  names(res) <- cols_names
+  return(res)
+}
+
 total_df <- acquired_report %>%
   left_join(mut_quant[c("gyrA","gyrB","parC","parE","id")], by = "id") %>%
   left_join(mut_report[c("marR","id")], by = "id") %>%
@@ -1042,7 +1088,7 @@ total_df2 <- total_df %>%
   select(id, species, everything()) %>%
   mutate_at(vars(qnrA1,qnrB19,qnrB6,qnrB60,qnrS1,qnrS2,qnrS4),
             funs(as.numeric(.))) %>%
-  mutate(qnr = ifelse(rowSums(.[,3:9]) == 0, 0, 1)) %>%
+  mutate(qnr = ifelse(rowSums(.[,4:10]) == 0, 0, 1)) %>%
   select(-c(qnrA1,qnrB19,qnrB6,qnrB60,qnrS1,qnrS2,qnrS4)) %>%
   left_join(mic_data[c("id","CIP")], by = "id") %>%
   select(-id) %>%
@@ -1050,7 +1096,7 @@ total_df2 <- total_df %>%
             funs(as.numeric(as.character(.)))) %>%
   group_by(species, CIP) %>%
   summarise_all(funs(sum, n = n())) %>%
-  select(-c(qnr_n,gyrA_D87G_n,gyrA_D87H_n,
+  select(-c(qepA4_n,qnr_n,gyrA_D87G_n,gyrA_D87H_n,
             gyrA_D87N_n,gyrA_D87Y_n,gyrA_S83A_n,
             gyrA_S83L_n,parC_A56T_n,parC_E84V_n,
             parC_S57T_n,parC_S58I_n,parC_S80I_n,
@@ -1068,35 +1114,73 @@ total_df2 <- total_df %>%
                           gene2 == "parC" ~ 3,
                           gene2 == "parE" ~ 4,
                           gene2 == "marR" ~ 5,
-                          gene2 == "qnr" ~ 6),
+                          gene2 == "qnr" ~ 6,
+                          gene2 == "qepA4" ~ 7),
          perc = value/n*100)
+# 
+# ggplot(total_df2, aes(reorder(gene, type), factor(CIP), fill = perc))+
+#   geom_tile(color = "grey70")+
+#   scale_fill_viridis(option = "A",
+#                      begin = 0.1,
+#                      guide = guide_colorbar(ticks = F,
+#                                             barheight = 0.5,
+#                                             barwidth = 10))+
+#   theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.3, size = 7),
+#         axis.text.y = element_text(size = 8),
+#         axis.title.x = element_blank(),
+#         axis.title.y = element_text(size = 10),
+#         legend.title = element_blank(),
+#         legend.position="bottom",
+#         legend.justification="center",
+#         legend.direction="horizontal",
+#         legend.text = element_text(size = 8),
+#         strip.background = element_rect(colour = "black", fill = "grey70"),
+#         strip.text = element_text(size = 10))+
+#   labs(y = "CIP MIC")+
+#   facet_wrap(~species)+
+#   coord_fixed()
 
-ggplot(total_df2, aes(reorder(gene, type), factor(CIP), fill = perc))+
+p1 <- ggplot(total_df2, aes(reorder(gene, type), factor(CIP), fill = perc))+
   geom_tile(color = "grey70")+
-  annotate("rect", xmin = 0, xmax = 6.5, ymin = -0.5, ymax = 0.2, fill = "grey95", color = "black")+
-  annotate("rect", xmin = 6.5, xmax = 12.5, ymin = -0.5, ymax = 0.2, fill = "grey95", color = "black")+
-  annotate("rect", xmin = 12.5, xmax = 19.5, ymin = -0.5, ymax = 0.2, fill = "grey95", color = "black")+
-  annotate("text", x = 3.25, y = -0.05, label = "gyrA", size = 2.5)+
-  annotate("text", x = 9.5, y = -0.05, label = "parC", size = 2.5)+
-  annotate("text", x = 16, y = -0.05, label = "parE", size = 2.5)+
   scale_fill_viridis(option = "A",
-                     begin = 0.1,
-                     guide = guide_colorbar(ticks = F,
-                                            barheight = 0.5,
-                                            barwidth = 10))+
-  theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.3, size = 8),
-        axis.text.y = element_text(size = 8),
+                     begin = 0.1)+
+  guides(fill = FALSE)+
+  theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.3, size = 10),
+        axis.text.y = element_text(size = 10),
         axis.title.x = element_blank(),
         axis.title.y = element_text(size = 10),
-        legend.title = element_blank(),
-        legend.position="bottom",
-        legend.justification="center",
-        legend.direction="horizontal",
-        legend.text = element_text(size = 8),
         strip.background = element_rect(colour = "black", fill = "grey70"),
-        strip.text = element_text(size = 10))+
+        strip.text = element_text(size = 10),
+        plot.margin = unit(c(0,0,0,0), "cm"))+
   labs(y = "CIP MIC")+
-  facet_wrap(~species)+
+  facet_wrap(~species, ncol = 1)+
   coord_fixed()
+
+nplot_data <- total_df %>%
+  left_join(mic_data[c("id","CIP")], by = "id") %>%
+  group_by(species, CIP) %>%
+  count() %>%
+  ungroup() %>%
+  mutate(species = paste0(species, " n"))
+
+p2 <- ggplot(nplot_data, aes(factor(CIP), n))+
+  geom_col()+
+  theme(axis.title = element_blank(),
+        axis.text.y = element_blank(),
+        axis.text.x = element_text(size = 10),
+        axis.ticks.y = element_blank(),
+        strip.text = element_text(size = 10),
+        strip.background = element_rect(colour = "black", fill = "grey70"),
+        plot.margin = unit(c(0,0,-10,0), "cm"))+
+  facet_wrap(~species, ncol = 1)+
+  coord_flip()
+
+p1g <- ggplotGrob(p1)
+p2g <- ggplotGrob(p2)
+
+g <- cbind(p1g, p2g, size = "first")
+
+grid.arrange(g)
+
 ```
 
