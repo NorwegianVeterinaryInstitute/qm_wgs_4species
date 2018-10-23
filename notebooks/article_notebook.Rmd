@@ -1045,7 +1045,7 @@ acquired_report %>%
 ```
 
 ## Total resistance mechanisms per animal species
-```{r, warning=F, message=F, fig.height=8, fig.width=12}
+```{r, warning=F, message=F, fig.height=16, fig.width=20}
 AddCol <- function(df, col_name) {
   # split rows by delimeters
   string_to_proc <- df %>% select(!!col_name) %>%
@@ -1145,12 +1145,12 @@ p1 <- ggplot(total_df2, aes(reorder(gene, type), factor(CIP), fill = perc))+
   scale_fill_viridis(option = "A",
                      begin = 0.1)+
   guides(fill = FALSE)+
-  theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.3, size = 10),
-        axis.text.y = element_text(size = 10),
+  theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.3, size = 14),
+        axis.text.y = element_text(size = 14),
         axis.title.x = element_blank(),
-        axis.title.y = element_text(size = 10),
+        axis.title.y = element_text(size = 16),
         strip.background = element_rect(colour = "black", fill = "grey70"),
-        strip.text = element_text(size = 10),
+        strip.text = element_text(size = 14),
         plot.margin = unit(c(0,0,0,0), "cm"))+
   labs(y = "CIP MIC")+
   facet_wrap(~species, ncol = 1)+
@@ -1167,9 +1167,9 @@ p2 <- ggplot(nplot_data, aes(factor(CIP), n))+
   geom_col()+
   theme(axis.title = element_blank(),
         axis.text.y = element_blank(),
-        axis.text.x = element_text(size = 10),
+        axis.text.x = element_text(size = 14),
         axis.ticks.y = element_blank(),
-        strip.text = element_text(size = 10),
+        strip.text = element_text(size = 14),
         strip.background = element_rect(colour = "black", fill = "grey70"),
         plot.margin = unit(c(0,0,-10,0), "cm"))+
   facet_wrap(~species, ncol = 1)+
@@ -1266,6 +1266,6 @@ ggplot(corr_matrix, aes(reorder(var1, type1), reorder(var2, type2), fill = value
 
 # GyrB Protein sequence alignment
 ```{r}
-alignment <- Biostrings::readAAMultipleAlignment("../alignment.fasta")
+alignment <- Biostrings::readAAMultipleAlignment("../data/alignment.fasta")
 msaR::msaR(alignment)
 ```
