@@ -1184,3 +1184,88 @@ grid.arrange(g)
 
 ```
 
+## Correlation plot
+```{r}
+create_corr_matrix <- function(df) {
+  df <- df %>%
+    as.matrix %>%
+    cor %>%
+    as.data.frame %>%
+    rownames_to_column(var = "var1") %>%
+    gather(var2, value, -var1) %>%
+    mutate(var1 = gsub("(.*?)_R$", "\\1", var1),
+           var2 = gsub("(.*?)_R$", "\\1", var2))
+  return(df)
+}
+
+total_df <- acquired_report %>%
+  left_join(mut_quant[c("gyrA","gyrB","parC","parE","id")], by = "id") %>%
+  left_join(mut_report[c("marR","id")], by = "id")
+
+col_proc <- c("gyrA","gyrB","parC","parE")
+
+id <- total_df$id
+
+cols_to_add <- sapply(function(i) {AddCol(df = total_df, col_name = col_proc[i])},
+                      X = seq_along(col_proc)) %>%
+  bind_cols() %>%
+  cbind(id) %>%
+  gather(key, value, -id) %>%
+  filter(grepl("(.*?)_0", key) == FALSE) %>%
+  spread(key, value)
+
+corr_df <- total_df %>%
+  select(-c(gyrA, gyrB, parC, parE)) %>%
+  left_join(cols_to_add, by = "id") %>%
+  select(-id) %>%
+  mutate_all(funs(as.numeric)) %>%
+  mutate(qnr = ifelse(rowSums(.[,2:8]) == 0, 0, 1)) %>%
+  select(-c(qnrA1,qnrB19,qnrB6,qnrB60,qnrS1,qnrS2,qnrS4))
+
+corr_matrix <- create_corr_matrix(corr_df) %>%
+    mutate(gene1 = gsub("(.*?)_.+", "\\1", var1),
+           gene2 = gsub("(.*?)_.+", "\\1", var2),
+           var1 = gsub(".+_(.*?)", "\\1", var1),
+           var2 = gsub(".+_(.*?)", "\\1", var2),
+           type1 = case_when(gene1 == "gyrA" ~ 1,
+                          gene1 == "gyrB" ~ 2,
+                          gene1 == "parC" ~ 3,
+                          gene1 == "parE" ~ 4,
+                          gene1 == "marR" ~ 5,
+                          gene1 == "qnr" ~ 6,
+                          gene1 == "qepA4" ~ 7),
+           type2 = case_when(gene2 == "gyrA" ~ 1,
+                          gene2 == "gyrB" ~ 2,
+                          gene2 == "parC" ~ 3,
+                          gene2 == "parE" ~ 4,
+                          gene2 == "marR" ~ 5,
+                          gene2 == "qnr" ~ 6,
+                          gene2 == "qepA4" ~ 7))
+
+cols <- c("#e7f0fa","#c9e2f6","#95cbee","#0099dc","#4ab04a",
+          "#ffd73e","#eec73a","#e29421","#f05336","#ce472e")
+
+ggplot(corr_matrix, aes(reorder(var1, type1), reorder(var2, type2), fill = value))+
+  geom_tile(color = "white")+
+  scale_fill_gradientn(colors=cols,
+                       na.value="grey95",
+                       limits=c(-1, 1),
+                       guide=guide_colourbar(ticks=T,nbin=10,
+                                             barheight=.5,label=T, 
+                                             barwidth=10))+
+  labs(fill = NULL)+
+  theme_classic()+
+  theme(axis.text = element_text(size = 8),
+        axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.4),
+        axis.title = element_blank(),
+        legend.position="bottom",
+        legend.justification="center",
+        legend.direction="horizontal")+
+  coord_fixed()
+```
+
+# GyrB Protein sequence alignment
+```{r}
+alignment <- Biostrings::readAAMultipleAlignment("../alignment.fasta")
+msaR::msaR(alignment)
+```
