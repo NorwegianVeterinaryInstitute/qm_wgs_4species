@@ -1272,8 +1272,73 @@ ggplot(corr_matrix, aes(reorder(var1, type1), reorder(var2, type2), fill = value
   coord_fixed()
 ```
 
+## Sequence types per resistance category
+```{r}
+ST_MIC <- mic_data %>%
+  left_join(mlst_data[c("id","ST")], by = "id") %>%
+  mutate(SMX_R = ifelse(as.numeric(SMX) > 64, 1, 0),
+         TMP_R = ifelse(as.numeric(TMP) > 2, 1, 0),
+         CIP_R = ifelse(as.numeric(CIP) > 0.06, 1, 0),
+         TET_R = ifelse(as.numeric(TET) > 8, 1, 0),
+         NAL_R = ifelse(as.numeric(NAL) > 16, 1, 0),
+         CTX_R = ifelse(as.numeric(CTX) > 0.25, 1, 0),
+         CHL_R = ifelse(as.numeric(CHL) > 16, 1, 0),
+         AMP_R = ifelse(as.numeric(AMP) > 8, 1, 0),
+         GEN_R = ifelse(as.numeric(GEN) > 2, 1, 0)) %>%
+  mutate(NAL_CIP_R = rowSums(.[,c(15,17)]),
+         antres = rowSums(.[,13:21])-NAL_CIP_R) %>%
+  select(-c(NAL_CIP_R,SMX,TMP,CIP,TET,NAL,CTX,CHL,AMP,GEN)) %>%
+  left_join(isolate_data[c("id", "species")], by = "id") %>%
+  gather(AB, res, -c(id, antres, ST, species)) %>%
+  group_by(AB, ST, res, species) %>%
+  count() %>%
+  spread(res, n, fill = 0) %>%
+  rename("res" = "1",
+         "nonres" = "0") %>%
+  group_by(AB, ST) %>%
+  mutate(p = res/(res+nonres)*100) %>%
+  ungroup() %>%
+  mutate(AB = gsub("_R", "", AB))
+
+
+ggplot(ST_MIC, aes(reorder(ST, p), reorder(AB, -p), fill = p))+
+  geom_tile()+
+  scale_fill_viridis(guide = guide_colorbar(barheight = 5,
+                                            barwidth = 0.5,
+                                            label.position = "left",
+                                            label.hjust = 0.5,
+                                            label.vjust = 0.3,
+                                            ticks = TRUE))+
+  labs(y = "Antimicrobials")+
+  theme(axis.text.y = element_text(size = 4),
+        axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.4, size = 8),
+        axis.title.x = element_blank(),
+        axis.title.y = element_text(size = 10),
+        legend.position = "left",
+        legend.title = element_blank(),
+        legend.text = element_text(size = 7))+
+  facet_wrap(~ species, scales = "free_x", ncol = 1)
+```
+
+# Statistics
+## Grouping of MIC values
+```{r}
+stat_MIC <- mic_data[c("id", "CIP")] %>%
+  left_join(total_df, by = "id") %>%
+  left_join(cols_to_add, by = "id") %>%
+  select(-c(gyrA, gyrB, parC, parE)) %>%
+  mutate(category = ifelse(as.numeric(CIP) > 0.25, 1, 0)) %>%
+  select(-c(id, CIP))
+  
+test <- glm(factor(category) ~ ., data = stat_MIC, family = "binomial")
+
+summary(test)
+plot(test)
+```
+
 # GyrB Protein sequence alignment
 ```{r}
 alignment <- Biostrings::readAAMultipleAlignment("../data/alignment.fasta")
 msaR::msaR(alignment)
 ```
+
