@@ -2,6 +2,7 @@
 title: "Article data analysis"
 author: "Håkon Kaspersen"
 date: '`r format(Sys.time(), "%d.%m.%Y")`'
+always_allow_html: yes
 output:
     html_document:
       code_folding: hide
@@ -1318,6 +1319,92 @@ ggplot(ST_MIC, aes(reorder(ST, p), reorder(AB, -p), fill = p))+
         legend.title = element_blank(),
         legend.text = element_text(size = 7))+
   facet_wrap(~ species, scales = "free_x", ncol = 1)
+```
+
+
+## Sequence types and resistance mechanisms
+```{r, fig.width=14, fig.height=16}
+# identify which sequence types are represented over three times
+n_ST <- mlst_data[c("id","ST")] %>%
+  group_by(ST) %>%
+  count() %>%
+  filter(n > 3)
+
+# species ST  
+species_st <- mlst_data[c("id","ST")] %>%
+  left_join(isolate_data[c("id", "species")], by = "id") %>%
+  select(-id) %>%
+  group_by(ST, species) %>%
+  count() %>%
+  filter(ST %in% n_ST$ST)
+
+# prepare micplot data for each ST with n > 3
+micplot_st_df <- mlst_data[c("id", "ST")] %>%
+  left_join(mic_data[c("id", "CIP")], by = "id") %>%
+  group_by(ST, CIP) %>%
+  count() %>%
+  filter(ST %in% n_ST$ST)
+
+# prepare heatmap data frame
+st_heatmap_df <- mlst_data[c("id", "ST")] %>%
+  left_join(mut_report[c("id", "marR")], by = "id") %>%
+  left_join(cols_to_add, by = "id") %>%
+  left_join(acquired_report, by = "id") %>%
+  select(-id) %>%
+  mutate_at(vars(-ST),
+            funs(as.numeric)) %>%
+  group_by(ST) %>%
+  summarise_all(funs(sum, n = n())) %>%
+  ungroup() %>%
+  rename("n" = marR_n) %>%
+  select(-contains("_n")) %>%
+  gather(mechanism, value, -c(ST, n)) %>%
+  mutate(mechanism = sub("_sum", "", mechanism),
+         percent = round(value/n*100),
+         value2 = ifelse(value > 0, 1, 0)) %>%
+  filter(ST %in% n_ST$ST)
+
+# plots
+factor_breaks <- c(0.015,0.03,0.06,0.12,0.25,0.5,1,2,4,8,16,32,64,128,256)
+factor_levels <- c("0.015","0.03","0.06","0.12","0.25","0.5","1","2","4","8","16","32","64","128","256")
+
+## heatmap
+heatmap_st <- ggplot(st_heatmap_df, aes(mechanism, ST, fill = percent))+
+  geom_tile()+
+  scale_fill_viridis()+
+  guides(fill = FALSE)+
+  theme(axis.text.x = element_text(angle = 90,
+                                   hjust = 1,
+                                   vjust = 0.3,
+                                   size = 8),
+        axis.title.x = element_blank())
+
+## micplot
+micplot_st <- ggplot(micplot_st_df, aes(ST, CIP))+
+  geom_boxplot(fill = "#67a9cf")+
+  scale_y_continuous(labels = factor_levels,
+                     breaks = factor_breaks,
+                     trans = "log10")+
+  theme(axis.title = element_blank(),
+        axis.text.y = element_blank(),
+        axis.text.x = element_text(size = 8),
+        axis.ticks.y = element_blank())+
+  coord_flip()
+
+# n plot
+nplot_st <- ggplot(species_st, aes(ST, n, fill = species))+
+  geom_col(color = "black")+
+  scale_fill_brewer(palette = "Paired")+
+  theme(axis.title = element_blank(),
+        axis.text.y = element_blank(),
+        axis.text.x = element_text(size = 8),
+        axis.ticks.y = element_blank(),
+        legend.position = c(0.6, 0.95),
+        legend.title = element_blank())+
+  coord_flip()
+
+cowplot::plot_grid(heatmap_st, micplot_st, nplot_st, ncol = 3, align = "h", rel_widths = c(3/6, 2/6, 1/6))
+
 ```
 
 # Statistics
