@@ -162,8 +162,8 @@ ggplot(sequence_data, aes(as.numeric(`R1-1`)))+
 ```{r ARIBA analysis, include = FALSE}
 megares_report_loc <- "../data/ariba/megares_results"
 resfinder_report_loc <- "../data/ariba/resfinder_results"
-ac_genes <- c("qnr","oqx","qep")
-mut_genes <- c("gyr","par","marR","soxR","acrR","mcb")
+ac_genes <- c("qnr","oqx","qep","mfp","mcb")
+mut_genes <- c("gyr","par","marR","soxR","acrR","nor","ydh","mdf")
 
 # adjust parameters for filtering
 if (length(ac_genes) == 1) {
