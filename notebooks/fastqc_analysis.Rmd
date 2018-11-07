@@ -425,3 +425,16 @@ df_list$per_base_sequence_quality %>%
   facet_wrap( ~ group, scales = "free_x", dir = "v")
 ```
 
+## Size of genome per sequencing method
+```{r}
+df_list$basic_statistics %>%
+  left_join(., df_list$basic_statistics[, c("ref", "Sequence length", "group")], by = "ref") %>%
+  rename("tot_seq" = `Total Sequences`) %>%
+  mutate(tot_seq = as.numeric(tot_seq)) %>%
+  ggplot(aes(group.x, tot_seq))+
+  geom_boxplot()+
+  labs(y = "Total Sequences")+
+  theme_classic()+
+  theme(axis.title.x = element_blank())
+```
+

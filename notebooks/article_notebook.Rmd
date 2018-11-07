@@ -34,9 +34,10 @@ pacman::p_load(dplyr, ggplot2, tidyr, cowplot, viridis, forcats, radiant.data, p
 ```
 
 ```{r Import data, include = FALSE}
-
 # Collapses data frame to unique lines while ignoring NA's
 func_paste <- function(x) paste(unique(x[!is.na(x)]), collapse = ", ")
+
+"%not_in%" <- Negate("%in%")
 
 id_data <- read.table("../data/id.txt",
                       sep = "\t",
@@ -46,7 +47,11 @@ id_data <- read.table("../data/id.txt",
 isolate_data <- read.table("../data/isolate_data.txt",
                            sep = "\t",
                            header = T,
-                           stringsAsFactors = F)
+                           stringsAsFactors = F) %>%
+  filter(id %not_in% c("2016-17-565-1-S",
+                       "2016-02-428-2-S",
+                       "2016-02-486-2-S",
+                       "2016-02-732-2-S"))
 
 two_reads <- read.table("../data/no_of_reads.txt",
                           sep = "\t",
@@ -84,12 +89,20 @@ four_reads <- four_reads %>%
 
 no_of_reads <- as.data.frame(rbind(as.matrix(two_reads), as.matrix(four_reads))) %>%
   left_join(id_data, by = "ref") %>%
-  select(id, everything(), -ref)
+  select(id, everything(), -ref) %>%
+  filter(id %not_in% c("2016-17-565-1-S",
+                       "2016-02-428-2-S",
+                       "2016-02-486-2-S",
+                       "2016-02-732-2-S"))
 
 mic_data <- read.table("../data/mic_data.txt",
                            sep = "\t",
                            header = T,
-                           stringsAsFactors = F)
+                           stringsAsFactors = F) %>%
+  filter(id %not_in% c("2016-17-565-1-S",
+                       "2016-02-428-2-S",
+                       "2016-02-486-2-S",
+                       "2016-02-732-2-S"))
 
 mlst_hf150bp <- read.table("../data/mlst/hiseq_flex_150bp_mlst_summarized_results.tsv",
                            sep = "\t",
@@ -113,7 +126,11 @@ mlst_data <- rbind(mlst_hf150bp, mlst_hx125bp, mlst_hrx250bp) %>%
   select(-x) %>%
   rename("ref" = header) %>%
   left_join(id_data, by = "ref") %>%
-  select(id, everything(), -ref)
+  select(id, everything(), -ref) %>%
+  filter(id %not_in% c("2016-17-565-1-S",
+                       "2016-02-428-2-S",
+                       "2016-02-486-2-S",
+                       "2016-02-732-2-S"))
 ```
 
 
@@ -163,7 +180,7 @@ ggplot(sequence_data, aes(as.numeric(`R1-1`)))+
 megares_report_loc <- "../data/ariba/megares_results"
 resfinder_report_loc <- "../data/ariba/resfinder_results"
 ac_genes <- c("qnr","oqx","qep","mfp","mcb")
-mut_genes <- c("gyr","par","marR","soxR","acrR","nor","ydh","mdf")
+mut_genes <- c("gyr","par","marR","soxR","acrR","nor","ydh","mdf","sdi")
 
 # adjust parameters for filtering
 if (length(ac_genes) == 1) {
@@ -490,22 +507,38 @@ clean_acquired_data <- fix_gene_names(acquired_data)
 # Check flags
 mut_flags <- check_flags(clean_mut_data) %>%
   left_join(id_data, by = "ref") %>%
-  select(id, everything(), -ref)
+  select(id, everything(), -ref) %>%
+  filter(id %not_in% c("2016-17-565-1-S",
+                       "2016-02-428-2-S",
+                       "2016-02-486-2-S",
+                       "2016-02-732-2-S"))
 
 acquired_flags <- check_flags(clean_acquired_data) %>%
   left_join(id_data, by = "ref") %>%
-  select(id, everything(), -ref)
+  select(id, everything(), -ref) %>%
+  filter(id %not_in% c("2016-17-565-1-S",
+                       "2016-02-428-2-S",
+                       "2016-02-486-2-S",
+                       "2016-02-732-2-S"))
 
 # Wrangle
 mut_table <- create_mut_table(clean_mut_data)
 mut_table_fixed <- fix_gyr_par_results(mut_table) %>%
   left_join(id_data, by = "ref") %>%
-  select(id, everything(), -ref)
+  select(id, everything(), -ref) %>%
+  filter(id %not_in% c("2016-17-565-1-S",
+                       "2016-02-428-2-S",
+                       "2016-02-486-2-S",
+                       "2016-02-732-2-S"))
 
 mut_filtered <- filter_mut_table(mut_table_fixed)
 acquired_table <- create_acquired_table(clean_acquired_data) %>%
   left_join(id_data, by = "ref") %>%
-  select(id, everything(), -ref)
+  select(id, everything(), -ref) %>%
+  filter(id %not_in% c("2016-17-565-1-S",
+                       "2016-02-428-2-S",
+                       "2016-02-486-2-S",
+                       "2016-02-732-2-S"))
 
 acquired_filtered <- filter_acquired_table(acquired_table)
 
@@ -532,7 +565,11 @@ if (length(ac_genes) == 1) {
 
 mut_quant <- suppressWarnings(calc_no_of_mut(mut_table)) %>%
   left_join(id_data, by = "ref") %>%
-  select(id, everything(), -ref)
+  select(id, everything(), -ref) %>%
+  filter(id %not_in% c("2016-17-565-1-S",
+                       "2016-02-428-2-S",
+                       "2016-02-486-2-S",
+                       "2016-02-732-2-S"))
 
 # ---------------------------------- Tables
 
@@ -677,13 +714,13 @@ acquired_report %>%
 ## Percent isolates with specific qnr genes
 ```{r}
 acquired_report %>%
-  select(-id) %>%
+  select(-c(id ,qepA4)) %>%
   t() %>%
   as.data.frame(.) %>%
   mutate(Gene = rownames(.)) %>%
   mutate_at(vars(-Gene),
             funs(as.numeric(as.character(.)))) %>%
-  mutate(Present = rowSums(.[,-286])) %>%
+  mutate(Present = rowSums(.[,-282])) %>%
   select(c(Gene, Present)) %>%
   rowwise() %>%
   mutate(Total = 285,
@@ -697,7 +734,7 @@ acquired_report %>%
 ## Percent isolates with mutations in QRDR
 ```{r}
 mut_report %>%
-  select(-c(id, marR, nt_change)) %>%
+  select(-c(id, marR, nt_change, mdfA)) %>%
   group_by_all() %>%
   count() %>%
   ungroup() %>%
