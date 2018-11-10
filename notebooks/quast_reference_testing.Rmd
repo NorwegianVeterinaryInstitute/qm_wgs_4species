@@ -186,21 +186,10 @@ ggplot(df2, aes(short_group, as.numeric(Largest.contig), fill = short_group))+
   facet_wrap(~name)
 ```
 
-
-## Genome length vs. reference length
-```{r}
-ggplot(df2, aes(as.numeric(size), as.numeric(Total.length), fill = short_group))+
-  geom_jitter(pch = 21, size = 3)+
-  labs(y = "Total Length",
-       x = "Reference length",
-       fill = NULL)+
-  theme_classic()
-```
-
 ## Genome fraction vs reference length
 ```{r}
 ggplot(df2, aes(as.numeric(Genome.fraction....), as.numeric(Total.length), fill = short_group))+
-  geom_jitter(pch = 21, size = 3)+
+  geom_point(pch = 21, size = 3)+
   labs(y = "Total Length",
        x = "Genome Fraction",
        fill = NULL)+
