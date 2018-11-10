@@ -836,6 +836,25 @@ acquired_report %>%
   select(-c(lwr, upr, Total))
 ```
 
+## Amount of isolates resistant to specific antimicrobials
+```{r}
+mic_data %>%
+  mutate(SMX_R = ifelse(SMX > 64, 1, 0),
+         TMP_R = ifelse(TMP > 2, 1, 0),
+         CIP_R = ifelse(CIP > 0.06, 1, 0),
+         TET_R = ifelse(TET > 8, 1, 0),
+         NAL_R = ifelse(NAL > 16, 1, 0),
+         CTX_R = ifelse(CTX > 0.25, 1, 0),
+         CHL_R = ifelse(CHL > 16, 1, 0),
+         AMP_R = ifelse(AMP > 8, 1, 0),
+         GEN_R = ifelse(GEN > 2, 1, 0)) %>%
+  select(contains("_R")) %>%
+  gather(AB, value) %>%
+  group_by(AB) %>%
+  summarise_all(funs(sum)) %>%
+  arrange(desc(value)) %>%
+  mutate(AB = sub("_R", "", AB))
+```
 
 
 ## Significant differences between resistance mechanisms for each animal species
@@ -1444,6 +1463,76 @@ cowplot::plot_grid(heatmap_st, micplot_st, nplot_st, ncol = 3, align = "h", rel_
 
 ```
 
+# Phenotypic resistance combinations
+```{r, fig.width=12, fig.height=10}
+mic_dotplot_data <- mic_data %>%
+  mutate(SMX_R = ifelse(SMX > 64, 1, 0),
+         TMP_R = ifelse(TMP > 2, 1, 0),
+         CIP_R = ifelse(CIP > 0.06, 1, 0),
+         TET_R = ifelse(TET > 8, 1, 0),
+         NAL_R = ifelse(NAL > 16, 1, 0),
+         CTX_R = ifelse(CTX > 0.25, 1, 0),
+         CHL_R = ifelse(CHL > 16, 1, 0),
+         AMP_R = ifelse(AMP > 8, 1, 0),
+         GEN_R = ifelse(GEN > 2, 1, 0)) %>%
+  select(contains("_R"), -c(CIP_R, NAL_R)) %>%
+  mutate(None = ifelse(rowSums(.) == 0, 1, 0)) %>%
+  group_by_all() %>%
+  count() %>%
+  ungroup() %>%
+  mutate(id = 1:n()) %>%
+  gather(AM, value, -id, -n) %>%
+  mutate(value = ifelse(AM == "None" & value == 0, NA, value),
+         value = ifelse(AM != "None" & value == 0, NA, value),
+         AM = sub("_R", "", AM)) %>%
+  filter(is.na(value) == FALSE) %>%
+  mutate(AM = factor(AM, ordered = TRUE, levels = c("SMX","TMP","AMP","TET","CHL","CTX","GEN","None")))
+
+
+mic_nplot_data <- mic_data %>%
+  mutate(SMX_R = ifelse(SMX > 64, 1, 0),
+         TMP_R = ifelse(TMP > 2, 1, 0),
+         CIP_R = ifelse(CIP > 0.06, 1, 0),
+         TET_R = ifelse(TET > 8, 1, 0),
+         NAL_R = ifelse(NAL > 16, 1, 0),
+         CTX_R = ifelse(CTX > 0.25, 1, 0),
+         CHL_R = ifelse(CHL > 16, 1, 0),
+         AMP_R = ifelse(AMP > 8, 1, 0),
+         GEN_R = ifelse(GEN > 2, 1, 0)) %>%
+  select(id, contains("_R"), -c(CIP_R, NAL_R)) %>%
+  mutate(None = ifelse(rowSums(.[,2:8]) == 0, 1, 0)) %>%
+  left_join(isolate_data[c("id", "species")], by = "id") %>%
+  select(-id) %>%
+  group_by_all() %>%
+  count() %>%
+  group_by_at(vars(SMX_R, TMP_R, TET_R, CTX_R, CHL_R, AMP_R, GEN_R)) %>%
+  { mutate(ungroup(.), group = group_indices(.)) } %>%
+  group_by(group) %>%
+  mutate(group_n = sum(n))
+
+
+mic_dotplot <- ggplot(mic_dotplot_data, aes(reorder(factor(id), -n), AM, fill = AM)) +
+  geom_point(size = 6, pch = 21)+
+  guides(fill = FALSE)+
+  theme(axis.title = element_blank(),
+        axis.text.x = element_blank(),
+        axis.ticks.x = element_blank(),
+        panel.grid.major.x = element_line())
+
+mic_nplot <- ggplot(mic_nplot_data, aes(reorder(factor(group), -group_n), n, fill = species))+
+  geom_col(color = "black")+
+  scale_fill_brewer(palette = "Paired")+
+  theme(axis.title.x = element_blank(),
+        axis.text.x = element_blank(),
+        axis.ticks.x = element_blank(),
+        legend.position = c(0.85,0.85),
+        legend.title = element_blank())
+
+cowplot::plot_grid(mic_nplot, mic_dotplot, ncol = 1, align = "v")
+
+```
+
+
 # Statistics
 ## Grouping of MIC values
 ```{r}
@@ -1454,10 +1543,10 @@ stat_MIC <- mic_data[c("id", "CIP")] %>%
   mutate(category = ifelse(as.numeric(CIP) > 0.25, 1, 0)) %>%
   select(-c(id, CIP))
   
-test <- glm(factor(category) ~ ., data = stat_MIC, family = "binomial")
-
-summary(test)
-plot(test)
+# test <- glm(category ~ ., data = stat_MIC, family = "binomial")
+# 
+# summary(test)
+# plot(test)
 ```
 
 # GyrB Protein sequence alignment
