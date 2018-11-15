@@ -19,14 +19,47 @@ output:
       toc_depth: '3'
 ---
 
-# Dependencies
-This notebook is using the following packages:
+# Background
 
-- dplyr
+## Aims
 
-- ggplot2
+- Identify potential differences in resistance mechanisms between wild- and production animals.
 
-- purrr
+- Identify potential clones which are species specific.
+
+- Characterize resistance mechanisms in QREC from Norwegian wild- and production animals. 
+
+- Identify "main culprit" mechanisms that infer high MIC values for CIP and/or NAL.
+
+- Characterize the population structure of QREC from selected animal species.
+
+## Isolates and Methods
+
+Groups of quinolone resistant *E. coli* (QREC) isolates based on animal species, minimum inhibitory concentration (MIC) values to CIP and NAL, and the amount of additional resistances were created, and isolates were randomly selected from these groups (*n* = 285). This was done to ensure phenotypic diversity in the isolates. Of the 285 isolates, 73 were already sequenced in other projects, and 212 were subjected to whole genome sequencing. MIC values were extracted from the internal sample registration system at the Norwegian Veterinary Institute.
+
+The sequences were subjected to quality control with FastQC. Mash screen was used to identify contaminant reads in the files. Four isolates were excluded from the dataset due to contamination with *Citrobacter* reads. This is probably due to contaminated culture during DNA extraction.
+
+To identify resistance genes of interest, the sequences were run through the program "Antimicrobial Resistance Identification By Assembly" (ARIBA), which is included in the Bifrost Pipeline. Acquired resistance genes were detected by the use of the ResFinder database, while mutations in intrinsic genes related to quinolone resistance was identified with the MegaRes database.
+Sequence types was also identified by ARIBA, using the Wirth et al. scheme (*E. coli* #1).
+
+
+
+
+## Further work
+
+- Assemble genomes
+
+- Align assemblies
+
+- Land on methodology for phylogenetic analysis (likely core genome SNP - ML)
+
+
+
+Results from various analyses are listed below.
+
+
+
+
 ```{r load libraries, message=FALSE, warning=FALSE}
 # Libraries
 if (!require("pacman")) install.packages("pacman")
@@ -180,7 +213,7 @@ ggplot(sequence_data, aes(as.numeric(`R1-1`)))+
 megares_report_loc <- "../data/ariba/megares_results"
 resfinder_report_loc <- "../data/ariba/resfinder_results"
 ac_genes <- c("qnr","oqx","qep","mfp","mcb")
-mut_genes <- c("gyr","par","marR","soxR","acrR","nor","ydh","mdf","sdi")
+mut_genes <- c("gyr","par","marR","marA","acrB","soxR","acrR","nor","ydh","mdf","sdi","rpoB")
 
 # adjust parameters for filtering
 if (length(ac_genes) == 1) {
@@ -656,9 +689,12 @@ intrinsic_ref_genes <- mut_data %>%
                           grepl("pare", cluster, ignore.case = T) == TRUE ~ "parE",
                           grepl("soxR", cluster, ignore.case = T) == TRUE ~ "soxR",
                           grepl("marR", cluster, ignore.case = T) == TRUE ~ "marR",
+                          grepl("mara", cluster, ignore.case = T) == TRUE ~ "marA",
                           grepl("tolc", cluster, ignore.case = T) == TRUE ~ "tolC",
                           grepl("acrr", ref_name, ignore.case = T) == TRUE ~ "acrR",
-                          grepl("mdfa", ref_name, ignore.case = T) == TRUE ~ "mdfA")) %>%
+                          grepl("acrb", ref_name, ignore.case = T) == TRUE ~ "acrB",
+                          grepl("mdfa", ref_name, ignore.case = T) == TRUE ~ "mdfA",
+                          grepl("rpob", ref_name, ignore.case = T) == TRUE ~ "rpoB")) %>%
   filter(test == FALSE,
          cluster %in% ref_names) %>%
   select(ref_name, gene, free_text) %>%
@@ -670,14 +706,17 @@ intrinsic_ref_genes <- mut_data %>%
   rename("Accession number(s)" = ref_name2,
          "Gene" = gene) %>%
   mutate(Description = case_when(Gene == "acrR" ~ "Multidrug efflux regulator, represses the transcription of acrB.",
+                                 Gene == "acrB" ~ "Gene that codes for the AcrB efflux pump, part of the AcrAB-TolC efflux system",
                                  Gene == "gyrA" ~ "DNA gyrase subunit A, regulates DNA topoplogy. Target for quinolones.",
                                  Gene == "gyrB" ~ "DNA gyrase subunit B, regulates DNA topoplogy. Target for quinolones.",
                                  Gene == "marR" ~ "Repressor of the marRAB operon, involved with the activation of resistance- and oxidative stress genes.",
+                                 Gene == "marA" ~ "Transcriptional activator og genes involved in the MAR phenotype.",
                                  Gene == "parC" ~ "Topoisomerase IV subunit C, regulates DNA topology. Target for quinolones.",
                                  Gene == "parE" ~ "Topoisomerase IV subunit E, regulates DNA topology. Target for quinolones.",
                                  Gene == "soxR" ~ "Transcriptional activator of the superoxide response regulon.",
                                  Gene == "tolC" ~ "Part of the major AcrAB-TolC multidrug efflux pump.",
-                                 Gene == "mdfA" ~ "Chromosomal efflux pump."),
+                                 Gene == "mdfA" ~ "Chromosomal efflux pump.",
+                                 Gene == "rpoB" ~ "Beta-subunit of RNA polymerase, mutations lead to increased expression of the ydhE-pump"),
          Type = "Intrinsic gene")
                 
 ref_genes <- rbind(intrinsic_ref_genes, acquired_ref_genes)
@@ -738,7 +777,7 @@ acquired_report %>%
 ## Percent isolates with mutations in QRDR
 ```{r}
 mut_report %>%
-  select(-c(id, marR, nt_change, mdfA)) %>%
+  select(gyrA, gyrB, parC, parE) %>%
   group_by_all() %>%
   count() %>%
   ungroup() %>%
@@ -822,7 +861,7 @@ This table presents the total combination of resistance mechanisms, their respec
 ```{r}
 acquired_report %>%
   left_join(mut_quant[c("gyrA","gyrB","parC","parE","id")], by = "id") %>%
-  left_join(mut_report[c("marR","mdfA","id")], by = "id") %>%
+  left_join(mut_report[c("id","marR","marA","mdfA","acrB","rpoB")], by = "id") %>%
   left_join(mic_data[c("id","CIP","NAL")], by = "id") %>%
   left_join(isolate_data[c("id","species")], by = "id") %>%
   select(-id) %>%
@@ -903,13 +942,14 @@ do_chisq_test <- function(df) {
            dupl = duplicated(test)) %>%
     filter(dupl == FALSE) %>%
     select(gene, species1, species2, p.value) %>%
-    filter(p.value < 0.05)
+    mutate(p.value = round(p.value, 5)) %>%
+    filter(p.value <= 0.05)
   return(df)
 }
 
 total_df <- acquired_report %>%
   left_join(mut_quant[c("gyrA","gyrB","parC","parE","id")], by = "id") %>%
-  left_join(mut_report[c("marR","id")], by = "id") %>%
+  left_join(mut_report[c("id","marR","marA","mdfA","acrB","rpoB")], by = "id") %>%
   left_join(isolate_data[c("id", "species")])
 
 col_proc <- c("gyrA","gyrB","parC","parE")
@@ -968,13 +1008,13 @@ total_report <- mut_report %>%
          upr = round(get_binCI(n, total)[2], 1))
 
 genes <- c(names(mut_report), names(acquired_report))
-genes <- genes[!genes == "id"]
+genes <- genes[!genes %in% c("id","nt_change")]
 
-p1 <- ggplot(total_report, aes(reorder(present, as.numeric(-CIP)), percent, fill = factor(CIP)))+
+cip_n_plot <- ggplot(total_report, aes(reorder(present, as.numeric(CIP)), percent, fill = factor(CIP)))+
   geom_col(color = "black")+
   labs(y = "Percent (%) isolates")+
   scale_fill_viridis(discrete = TRUE)+
-  guides(fill = FALSE)+
+  guides(fill=guide_legend(ncol = 10))+
   theme(axis.text.x = element_blank(),
         axis.ticks.x = element_blank(),
         axis.title.y = element_text(size = 10),
@@ -983,10 +1023,12 @@ p1 <- ggplot(total_report, aes(reorder(present, as.numeric(-CIP)), percent, fill
         legend.text = element_text(size = 8),
         legend.title = element_blank(),
         legend.position = "top",
-        legend.spacing.x = unit(0.27, "cm"))
+        legend.spacing.x = unit(0.2, "cm"),
+        legend.justification = "center")
 
 dot_report <- mut_report %>%
   left_join(acquired_report, by = "id") %>%
+  select(-nt_change) %>%
   gather(gene, value, -id) %>%
   mutate(present = ifelse(value == 1, gene, NA),
          ref = 1:n()) %>%
@@ -1005,7 +1047,7 @@ dot_report <- mut_report %>%
   na.omit()
 
   
-p2 <- ggplot(dot_report, aes(reorder(present, -CIP), gene, fill = gene))+
+mechanism_dot_plot <- ggplot(dot_report, aes(reorder(present, CIP), gene, fill = gene))+
   geom_point(size = 2, pch = 21)+
   scale_fill_viridis(option = "B",
                      discrete = TRUE)+
@@ -1015,7 +1057,7 @@ p2 <- ggplot(dot_report, aes(reorder(present, -CIP), gene, fill = gene))+
         axis.title = element_blank(),
         axis.ticks.x = element_blank())
 
-plot_grid(p1, p2, nrow = 2, align = "v", rel_heights = c(3.5/5, 1.5/5))
+plot_grid(cip_n_plot, mechanism_dot_plot, nrow = 2, align = "v", rel_heights = c(3.5/5, 1.5/5))
 
 ```
 
@@ -1132,7 +1174,7 @@ AddCol <- function(df, col_name) {
 
 total_df <- acquired_report %>%
   left_join(mut_quant[c("gyrA","gyrB","parC","parE","id")], by = "id") %>%
-  left_join(mut_report[c("marR","id")], by = "id") %>%
+  left_join(mut_report[c("id","marR","marA","mdfA","acrB","rpoB")], by = "id") %>%
   left_join(isolate_data[c("id", "species")])
 
 col_proc <- c("gyrA","gyrB","parC","parE")
@@ -1167,7 +1209,8 @@ total_df2 <- total_df %>%
             parC_S57T_n,parC_S58I_n,parC_S80I_n,
             parC_S80R_n,parE_A512T_n,parE_D463N_n,
             parE_D475E_n,parE_H516Y_n,parE_L416F_n,
-            parE_L488M_n,parE_S458A_n)) %>%
+            parE_L488M_n,parE_S458A_n,marA_n,rpoB_n,
+            mdfA_n,acrB_n)) %>%
   gather(gene, value, -c(species, CIP, marR_n)) %>%
   rename("n" = marR_n) %>%
   mutate(gene2 = sub("(.*?)_(.*?)_sum", "\\1", gene),
@@ -1179,8 +1222,12 @@ total_df2 <- total_df %>%
                           gene2 == "parC" ~ 3,
                           gene2 == "parE" ~ 4,
                           gene2 == "marR" ~ 5,
-                          gene2 == "qnr" ~ 6,
-                          gene2 == "qepA4" ~ 7),
+                          gene2 == "marA" ~ 6,
+                          gene2 == "mdfA" ~ 7,
+                          gene2 == "acrB" ~ 8,
+                          gene2 == "rpoB" ~ 9,
+                          gene2 == "qnr" ~ 10,
+                          gene2 == "qepA4" ~ 11),
          perc = value/n*100)
 
 p1 <- ggplot(total_df2, aes(reorder(gene, type), factor(CIP), fill = perc))+
@@ -1252,7 +1299,7 @@ create_corr_matrix <- function(df) {
 
 total_df <- acquired_report %>%
   left_join(mut_quant[c("gyrA","gyrB","parC","parE","id")], by = "id") %>%
-  left_join(mut_report[c("marR","id")], by = "id")
+  left_join(mut_report[c("id","marR","marA","mdfA","acrB","rpoB")], by = "id")
 
 col_proc <- c("gyrA","gyrB","parC","parE")
 
@@ -1284,15 +1331,23 @@ corr_matrix <- create_corr_matrix(corr_df) %>%
                           gene1 == "parC" ~ 3,
                           gene1 == "parE" ~ 4,
                           gene1 == "marR" ~ 5,
-                          gene1 == "qnr" ~ 6,
-                          gene1 == "qepA4" ~ 7),
+                          gene1 == "marA" ~ 6,
+                          gene1 == "acrB" ~ 7,
+                          gene1 == "rpoB" ~ 8,
+                          gene1 == "mdfA" ~ 9,
+                          gene1 == "qnr" ~ 10,
+                          gene1 == "qepA4" ~ 11),
            type2 = case_when(gene2 == "gyrA" ~ 1,
                           gene2 == "gyrB" ~ 2,
                           gene2 == "parC" ~ 3,
                           gene2 == "parE" ~ 4,
                           gene2 == "marR" ~ 5,
-                          gene2 == "qnr" ~ 6,
-                          gene2 == "qepA4" ~ 7))
+                          gene2 == "marA" ~ 6,
+                          gene2 == "acrB" ~ 7,
+                          gene2 == "rpoB" ~ 8,
+                          gene2 == "mdfA" ~ 9,
+                          gene2 == "qnr" ~ 10,
+                          gene2 == "qepA4" ~ 11))
 
 cols <- c("#e7f0fa","#c9e2f6","#95cbee","#0099dc","#4ab04a",
           "#ffd73e","#eec73a","#e29421","#f05336","#ce472e")
@@ -1451,7 +1506,7 @@ cowplot::plot_grid(heatmap_st, micplot_st, nplot_st, ncol = 3, align = "h", rel_
 
 ```
 
-# Phenotypic resistance combinations
+## Phenotypic resistance combinations
 This plot presents the various phenotypic resistance combinations present in the isolates, and how many isolates for each animal species in each group.
 ```{r, fig.width=12, fig.height=10}
 mic_dotplot_data <- mic_data %>%
@@ -1522,6 +1577,17 @@ mic_nplot <- ggplot(mic_nplot_data, aes(reorder(factor(group), -group_n), n, fil
 cowplot::plot_grid(mic_nplot, mic_dotplot, ncol = 1, align = "v")
 
 ```
+
+
+
+
+
+
+
+
+
+
+
 
 # GyrB Protein sequence alignment
 ```{r}
