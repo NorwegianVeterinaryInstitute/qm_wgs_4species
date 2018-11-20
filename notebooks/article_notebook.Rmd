@@ -747,17 +747,17 @@ acquired_report %>%
   mutate(result = if_else(result == 0, "Absent", "Present")) %>%
   spread(result, n) %>%
   mutate(Total = Present + Absent,
-         Percent = round(Present/Total * 100,2),
-         lwr = round(get_binCI(Present, Total)[1], 2),
-         upr = round(get_binCI(Present, Total)[2], 2),
+         Percent = round(Present/Total * 100,1),
+         lwr = round(get_binCI(Present, Total)[1], 1),
+         upr = round(get_binCI(Present, Total)[2], 1),
          "95 % CI" = paste("[", lwr, "-", upr, "]")) %>%
   select(-c(lwr, upr))
 ```
 
-## Percent isolates with specific qnr genes
+## Percent isolates with specific PMQR genes
 ```{r}
 acquired_report %>%
-  select(-c(id ,qepA4)) %>%
+  select(-id) %>%
   t() %>%
   as.data.frame(.) %>%
   mutate(Gene = rownames(.)) %>%
@@ -766,12 +766,12 @@ acquired_report %>%
   mutate(Present = rowSums(.[,-282])) %>%
   select(c(Gene, Present)) %>%
   rowwise() %>%
-  mutate(Total = 285,
-         Percent = round(Present/Total * 100,2),
-         lwr = round(get_binCI(Present, Total)[1], 2),
-         upr = round(get_binCI(Present, Total)[2], 2),
+  mutate(Total = 281,
+         Percent = round(Present/Total * 100,1),
+         lwr = round(get_binCI(Present, Total)[1], 1),
+         upr = round(get_binCI(Present, Total)[2], 1),
          "95 % CI" = paste("[", lwr, "-", upr, "]")) %>%
-  select(-c(lwr, upr, Total))
+  select(-c(lwr, upr))
 ```
 
 ## Percent isolates with mutations in QRDR
@@ -790,9 +790,9 @@ mut_report %>%
   mutate(type = ifelse(type == 0, "Present", "Absent")) %>%
   spread(type, n) %>%
   mutate(Total = Present + Absent,
-         Percent = round(Present/Total * 100,2),
-         lwr = round(get_binCI(Present, Total)[1], 2),
-         upr = round(get_binCI(Present, Total)[2], 2),
+         Percent = round(Present/Total * 100,1),
+         lwr = round(get_binCI(Present, Total)[1], 1),
+         upr = round(get_binCI(Present, Total)[2], 1),
          "95 % CI" = paste("[", lwr, "-", upr, "]")) %>%
   select(-c(lwr, upr, Total))
 ```
@@ -804,10 +804,10 @@ mut_quant %>%
   group_by(gyrA, gyrB, parC, parE) %>%
   count() %>%
   rowwise() %>%
-  mutate(Total = 285,
-         Percent = round(n/Total * 100,2),
-         lwr = round(get_binCI(n, Total)[1], 2),
-         upr = round(get_binCI(n, Total)[2], 2),
+  mutate(Total = 281,
+         Percent = round(n/Total * 100,1),
+         lwr = round(get_binCI(n, Total)[1], 1),
+         upr = round(get_binCI(n, Total)[2], 1),
          "95 % CI" = paste("[", lwr, "-", upr, "]")) %>%
   select(-c(lwr, upr, Total))
 ```
@@ -847,7 +847,7 @@ suppressWarnings(clean_mut_data %>%
   count() %>%
   separate(nt_change, into = c("Reference nt", "Contig nt"), sep = "-") %>%
   rowwise() %>%
-  mutate(Total = 285,
+  mutate(Total = 281,
          Percent = round(n/Total * 100,1),
          lwr = round(get_binCI(n, Total)[1],1),
          upr = round(get_binCI(n, Total)[2],1),
@@ -1002,7 +1002,7 @@ total_report <- mut_report %>%
   ungroup() %>%
   rowwise() %>%
   mutate(present = ifelse(present == "", "None", present),
-         total = 285,
+         total = 281,
          percent = round(n/total * 100, 1),
          lwr = round(get_binCI(n, total)[1], 1),
          upr = round(get_binCI(n, total)[2], 1))
@@ -1577,16 +1577,6 @@ mic_nplot <- ggplot(mic_nplot_data, aes(reorder(factor(group), -group_n), n, fil
 cowplot::plot_grid(mic_nplot, mic_dotplot, ncol = 1, align = "v")
 
 ```
-
-
-
-
-
-
-
-
-
-
 
 
 # GyrB Protein sequence alignment
