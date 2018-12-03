@@ -16,3 +16,5 @@ mlst_species2.txt
 total_data.txt
 id.txt
 sequences.fasta
+figures/
+tree_testing.R
