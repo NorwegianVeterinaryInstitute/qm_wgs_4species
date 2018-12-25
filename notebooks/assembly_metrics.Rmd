@@ -1,0 +1,164 @@
+---
+title: "Assembly Quality Metrics - Quast Results"
+author: "Håkon Kaspersen"
+date: '`r format(Sys.time(), "%d.%m.%Y")`'
+always_allow_html: yes
+output:
+    html_document:
+      code_folding: hide
+      df_print: paged
+      highlight: kate
+      number_sections: yes
+      theme: flatly
+      toc: yes
+      toc_depth: 3
+      toc_float:
+        collapsed: yes
+    pdf_document:
+      toc: yes
+      toc_depth: '3'
+---
+
+```{r, include = FALSE}
+pacman::p_load(dplyr, ggplot2, tidyr, cowplot, viridis, forcats, radiant.data, purrr, phangorn, gridExtra, ggtree, htmlTable, ape, cluster, tibble, magrittr)
+
+"%not_in%" <- Negate("%in%")
+
+id_data <- read.table("../data/id.txt",
+                      sep = "\t",
+                      header = TRUE,
+                      stringsAsFactors = F)
+
+isolate_data <- read.table("../data/isolate_data.txt",
+                           sep = "\t",
+                           header = T,
+                           stringsAsFactors = F) %>%
+  filter(id %not_in% c("2016-17-565-1-S",
+                       "2016-02-428-2-S",
+                       "2016-02-486-2-S",
+                       "2016-02-732-2-S",
+                       "2014-01-1741-1-S"))
+
+```
+
+
+```{r}
+path <- "../data/quast/"
+
+file_names <- function(filepath) {
+  files <- list.files(path = filepath, pattern = ".tsv")
+  return(files)
+}
+
+create_df <- function(df) {
+  df <- df %>%
+    rename(ctg_0_bp = X..contigs.....0.bp.,
+           ctg_1000_bp = X..contigs.....1000.bp.,
+           ctg_5000_bp = X..contigs.....5000.bp.,
+           ctg_10000_bp = X..contigs.....10000.bp.,
+           ctg_25000_bp = X..contigs.....25000.bp.,
+           ctg_50000_bp = X..contigs.....50000.bp.,
+           tot_len_0_bp = Total.length.....0.bp.,
+           tot_len_1000_bp = Total.length.....1000.bp.,
+           tot_len_5000_bp = Total.length.....5000.bp.,
+           tot_len_10000_bp = Total.length.....10000.bp.,
+           tot_len_25000_bp = Total.length.....25000.bp.,
+           tot_len_50000_bp = Total.length.....50000.bp.,
+           no_of_contigs = X..contigs,
+           no_of_misassemblies = X..misassemblies,
+           no_of_misassembled_ctg = X..misassembled.contigs,
+           no_of_local_misassemblies = X..local.misassemblies,
+           unaligned_contigs = X..unaligned.contigs,
+           N_per_100kbp = X..N.s.per.100.kbp,
+           mismatches_per_100kbp = X..mismatches.per.100.kbp,
+           indels_per_100kbp = X..indels.per.100.kbp,
+           genes = X..genes,
+           GC = GC....,
+           duplication_ratio = Duplication.ratio,
+           largest_contig = Largest.contig)
+  return(df)
+}
+
+```
+
+
+# Import files and clean data
+```{r}
+files <- file_names(path)
+
+data_list <- lapply(files,
+                    FUN = function(file) {
+                      read.delim(paste0(path, "/", file),
+                                 sep = "\t",
+                                 header = TRUE,
+                                 stringsAsFactors = FALSE)
+                    })
+
+data_list <- lapply(data_list, function(df) mutate_all(df, as.character))
+
+names(data_list) <- files
+
+df <- bind_rows(data_list)
+
+df_clean <- create_df(df) %>%
+  filter(grepl("broken", Assembly) == FALSE) %>%
+  filter(Assembly %not_in% c("51-2016-02-486_S31_pilon_spades",
+                             "68-2016-17-565_S45_pilon_spades",
+                             "52-2016-02-732_S43_pilon_spades",
+                             "50-2016-02-428_S19_pilon_spades",
+                             "4-2014-01-1741_TAAGGCGA-ACTGCATA_pilon_spades")) %>%
+  mutate(ref = Assembly %>%
+           gsub("_pilon_spades", "", .)) %>%
+  left_join(id_data, by = "ref") %>%
+  left_join(isolate_data[c("id","sequencer")], by = "id")
+
+metrics <- df_clean %>%
+  select(id, no_of_contigs, largest_contig, GC, N50, NG50, L50, LG50, no_of_misassemblies, duplication_ratio, genes) %>%
+  mutate_at(vars(no_of_contigs, largest_contig, N50),
+            funs(as.numeric))
+
+metrics
+
+metrics2 <- metrics %>%
+  left_join(isolate_data, by = "id")
+
+embed_data <- function(x = mtcars, filename = "file.csv", label= "Get data") {
+
+  # Create encoded Base64 datastream 
+  encode_data <- function(x){
+    write.csv2(x, "./file.csv")
+    enc= sprintf('data:text/csv;base64,%s', openssl::base64_encode(paste0(readLines("./file.csv"), collapse="\n")) )
+    unlink("./file.csv")
+    return(enc)
+  }
+
+  # String result ready to be placed in rmarkdown
+  paste0("<a download='", filename, "' href=", encode_data(x), ">", label, "</a>")
+
+}
+```
+
+`r embed_data(metrics, filename = "assembly_metrics.csv")`
+
+# Plots
+
+```{r}
+ggplot(metrics2, aes(as.numeric(largest_contig), as.numeric(N50)))+
+  geom_point()+
+  geom_smooth(method = "lm")+
+  theme_classic()+
+  labs(x = "Largest contig size",
+       y = "N50")
+
+```
+
+```{r}
+ggplot(metrics2, aes(as.numeric(no_of_contigs), as.numeric(N50)))+
+  geom_point()+
+  geom_smooth(method = "lm")+
+  theme_classic()+
+  labs(x = "Number of contigs",
+       y = "N50")
+```
+
+
