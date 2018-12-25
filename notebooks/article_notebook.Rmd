@@ -63,7 +63,7 @@ Results from various analyses are listed below.
 ```{r load libraries, message=FALSE, warning=FALSE}
 # Libraries
 if (!require("pacman")) install.packages("pacman")
-pacman::p_load(dplyr, ggplot2, tidyr, cowplot, viridis, forcats, radiant.data, purrr, phangorn, gridExtra, ggtree, htmlTable)
+pacman::p_load(dplyr, ggplot2, tidyr, cowplot, viridis, forcats, radiant.data, purrr, phangorn, gridExtra, ggtree, htmlTable, ape, cluster, tibble)
 ```
 
 ```{r Import data, include = FALSE}
@@ -84,7 +84,8 @@ isolate_data <- read.table("../data/isolate_data.txt",
   filter(id %not_in% c("2016-17-565-1-S",
                        "2016-02-428-2-S",
                        "2016-02-486-2-S",
-                       "2016-02-732-2-S"))
+                       "2016-02-732-2-S",
+                       "2014-01-1741-1-S"))
 
 two_reads <- read.table("../data/no_of_reads.txt",
                           sep = "\t",
@@ -126,7 +127,8 @@ no_of_reads <- as.data.frame(rbind(as.matrix(two_reads), as.matrix(four_reads)))
   filter(id %not_in% c("2016-17-565-1-S",
                        "2016-02-428-2-S",
                        "2016-02-486-2-S",
-                       "2016-02-732-2-S"))
+                       "2016-02-732-2-S",
+                       "2014-01-1741-1-S"))
 
 mic_data <- read.table("../data/mic_data.txt",
                            sep = "\t",
@@ -135,35 +137,11 @@ mic_data <- read.table("../data/mic_data.txt",
   filter(id %not_in% c("2016-17-565-1-S",
                        "2016-02-428-2-S",
                        "2016-02-486-2-S",
-                       "2016-02-732-2-S"))
+                       "2016-02-732-2-S",
+                       "2014-01-1741-1-S"))
 
-mlst_hf150bp <- read.table("../data/mlst/hiseq_flex_150bp_mlst_summarized_results.tsv",
-                           sep = "\t",
-                           header = T,
-                           stringsAsFactors = F)
-
-mlst_hx125bp <- read.table("../data/mlst/hiseq_xt_125bp_mlst_summarized_results.tsv",
-                           sep = "\t",
-                           header = T,
-                           stringsAsFactors = F)
-
-mlst_hrx250bp <- read.table("../data/mlst/hiseqr_xt_250bp_mlst_summarized_results.tsv",
-                           sep = "\t",
-                           header = T,
-                           stringsAsFactors = F)
-
-mlst_data <- rbind(mlst_hf150bp, mlst_hx125bp, mlst_hrx250bp) %>%
-  separate(ST.adk.fumC.gyrB.icd.mdh.purA.recA,
-           into = c("x","ST","adk","fumC","gyrB","icd","mdh","purA","recA"),
-           sep = " ") %>%
-  select(-x) %>%
-  rename("ref" = header) %>%
-  left_join(id_data, by = "ref") %>%
-  select(id, everything(), -ref) %>%
-  filter(id %not_in% c("2016-17-565-1-S",
-                       "2016-02-428-2-S",
-                       "2016-02-486-2-S",
-                       "2016-02-732-2-S"))
+mlst_data <- read.table("../data/mlst_results.txt", sep = "\t", header = TRUE, stringsAsFactors = F) %>%
+  filter(id %not_in% "2014-01-1741-1-S")
 ```
 
 
@@ -213,7 +191,7 @@ ggplot(sequence_data, aes(as.numeric(`R1-1`)))+
 megares_report_loc <- "../data/ariba/megares_results"
 resfinder_report_loc <- "../data/ariba/resfinder_results"
 ac_genes <- c("qnr","oqx","qep","mfp","mcb")
-mut_genes <- c("gyr","par","marR","marA","acrB","soxR","acrR","nor","ydh","mdf","sdi","rpoB")
+mut_genes <- c("gyr","par","marR","marA","acrB","soxR","acrR","nor","ydh","sdi","rpoB")
 
 # adjust parameters for filtering
 if (length(ac_genes) == 1) {
@@ -544,7 +522,8 @@ mut_flags <- check_flags(clean_mut_data) %>%
   filter(id %not_in% c("2016-17-565-1-S",
                        "2016-02-428-2-S",
                        "2016-02-486-2-S",
-                       "2016-02-732-2-S"))
+                       "2016-02-732-2-S",
+                       "2014-01-1741-1-S"))
 
 acquired_flags <- check_flags(clean_acquired_data) %>%
   left_join(id_data, by = "ref") %>%
@@ -552,7 +531,8 @@ acquired_flags <- check_flags(clean_acquired_data) %>%
   filter(id %not_in% c("2016-17-565-1-S",
                        "2016-02-428-2-S",
                        "2016-02-486-2-S",
-                       "2016-02-732-2-S"))
+                       "2016-02-732-2-S",
+                       "2014-01-1741-1-S"))
 
 # Wrangle
 mut_table <- create_mut_table(clean_mut_data)
@@ -562,7 +542,8 @@ mut_table_fixed <- fix_gyr_par_results(mut_table) %>%
   filter(id %not_in% c("2016-17-565-1-S",
                        "2016-02-428-2-S",
                        "2016-02-486-2-S",
-                       "2016-02-732-2-S"))
+                       "2016-02-732-2-S",
+                       "2014-01-1741-1-S"))
 
 mut_filtered <- filter_mut_table(mut_table_fixed)
 acquired_table <- create_acquired_table(clean_acquired_data) %>%
@@ -571,7 +552,8 @@ acquired_table <- create_acquired_table(clean_acquired_data) %>%
   filter(id %not_in% c("2016-17-565-1-S",
                        "2016-02-428-2-S",
                        "2016-02-486-2-S",
-                       "2016-02-732-2-S"))
+                       "2016-02-732-2-S",
+                       "2014-01-1741-1-S"))
 
 acquired_filtered <- filter_acquired_table(acquired_table)
 
@@ -602,7 +584,8 @@ mut_quant <- suppressWarnings(calc_no_of_mut(mut_table)) %>%
   filter(id %not_in% c("2016-17-565-1-S",
                        "2016-02-428-2-S",
                        "2016-02-486-2-S",
-                       "2016-02-732-2-S"))
+                       "2016-02-732-2-S",
+                       "2014-01-1741-1-S"))
 
 # ---------------------------------- Tables
 
@@ -763,10 +746,10 @@ acquired_report %>%
   mutate(Gene = rownames(.)) %>%
   mutate_at(vars(-Gene),
             funs(as.numeric(as.character(.)))) %>%
-  mutate(Present = rowSums(.[,-282])) %>%
+  mutate(Present = rowSums(.[,-281])) %>%
   select(c(Gene, Present)) %>%
   rowwise() %>%
-  mutate(Total = 281,
+  mutate(Total = 280,
          Percent = round(Present/Total * 100,1),
          lwr = round(get_binCI(Present, Total)[1], 1),
          upr = round(get_binCI(Present, Total)[2], 1),
@@ -804,7 +787,7 @@ mut_quant %>%
   group_by(gyrA, gyrB, parC, parE) %>%
   count() %>%
   rowwise() %>%
-  mutate(Total = 281,
+  mutate(Total = 280,
          Percent = round(n/Total * 100,1),
          lwr = round(get_binCI(n, Total)[1], 1),
          upr = round(get_binCI(n, Total)[2], 1),
@@ -847,7 +830,7 @@ suppressWarnings(clean_mut_data %>%
   count() %>%
   separate(nt_change, into = c("Reference nt", "Contig nt"), sep = "-") %>%
   rowwise() %>%
-  mutate(Total = 281,
+  mutate(Total = 280,
          Percent = round(n/Total * 100,1),
          lwr = round(get_binCI(n, Total)[1],1),
          upr = round(get_binCI(n, Total)[2],1),
@@ -861,7 +844,7 @@ This table presents the total combination of resistance mechanisms, their respec
 ```{r}
 acquired_report %>%
   left_join(mut_quant[c("gyrA","gyrB","parC","parE","id")], by = "id") %>%
-  left_join(mut_report[c("id","marR","marA","mdfA","acrB","rpoB")], by = "id") %>%
+  left_join(mut_report[c("id","marR","marA","acrB","rpoB")], by = "id") %>%
   left_join(mic_data[c("id","CIP","NAL")], by = "id") %>%
   left_join(isolate_data[c("id","species")], by = "id") %>%
   select(-id) %>%
@@ -874,7 +857,7 @@ acquired_report %>%
                          paste(min(as.numeric(NAL)), max(as.numeric(NAL)), sep = " - ")),
             n = n()) %>%
   rowwise() %>%
-  mutate(Total = 285,
+  mutate(Total = 280,
          Percent = round(n/Total * 100,1),
          lwr = round(get_binCI(n, Total)[1],1),
          upr = round(get_binCI(n, Total)[2],1),
@@ -949,7 +932,7 @@ do_chisq_test <- function(df) {
 
 total_df <- acquired_report %>%
   left_join(mut_quant[c("gyrA","gyrB","parC","parE","id")], by = "id") %>%
-  left_join(mut_report[c("id","marR","marA","mdfA","acrB","rpoB")], by = "id") %>%
+  left_join(mut_report[c("id","marR","marA","acrB","rpoB")], by = "id") %>%
   left_join(isolate_data[c("id", "species")])
 
 col_proc <- c("gyrA","gyrB","parC","parE")
@@ -986,7 +969,7 @@ p_values_total
 
 # Figures
 ## Percent isolates with PMQR and/or QRDR mutations in *gyrA*, *gyrB*, *parC* or *parE*
-```{r}
+```{r,message = FALSE, warning = FALSE}
 total_report <- mut_report %>%
   left_join(acquired_report, by = "id") %>%
   gather(gene, value, -id) %>%
@@ -1002,7 +985,7 @@ total_report <- mut_report %>%
   ungroup() %>%
   rowwise() %>%
   mutate(present = ifelse(present == "", "None", present),
-         total = 281,
+         total = 280,
          percent = round(n/total * 100, 1),
          lwr = round(get_binCI(n, total)[1], 1),
          upr = round(get_binCI(n, total)[2], 1))
@@ -1067,6 +1050,11 @@ gene_names <- names(mut_report)
 
 gene_names <- gene_names[-c(1,2)]
 
+palette <- c("Broiler" = "#4575b4",
+             "Pig" = "#74add1",
+             "Red fox" = "#f46d43",
+             "Wild bird" = "#fdae61")
+
 mut_report %>%
     left_join(isolate_data, by = "id") %>%
     gather(key, value, gene_names) %>%
@@ -1090,7 +1078,7 @@ mut_report %>%
       width = 0.6,
       position = position_dodge(1)
     ) +
-    scale_fill_brewer(palette = "Paired") +
+    scale_fill_manual(values = palette) +
     labs(y = "Percent (%) of isolates") +
     guides(fill = FALSE) +
     theme_classic() +
@@ -1136,7 +1124,7 @@ acquired_report %>%
       width = 0.6,
       position = position_dodge(0.9)
     ) +
-    scale_fill_brewer(palette = "Paired") +
+    scale_fill_manual(values = palette) +
     labs(y = "Percent (%) of isolates",
          fill = NULL) +
     theme_classic() +
@@ -1174,7 +1162,7 @@ AddCol <- function(df, col_name) {
 
 total_df <- acquired_report %>%
   left_join(mut_quant[c("gyrA","gyrB","parC","parE","id")], by = "id") %>%
-  left_join(mut_report[c("id","marR","marA","mdfA","acrB","rpoB")], by = "id") %>%
+  left_join(mut_report[c("id","marR","marA","acrB","rpoB")], by = "id") %>%
   left_join(isolate_data[c("id", "species")])
 
 col_proc <- c("gyrA","gyrB","parC","parE")
@@ -1210,7 +1198,7 @@ total_df2 <- total_df %>%
             parC_S80R_n,parE_A512T_n,parE_D463N_n,
             parE_D475E_n,parE_H516Y_n,parE_L416F_n,
             parE_L488M_n,parE_S458A_n,marA_n,rpoB_n,
-            mdfA_n,acrB_n)) %>%
+            acrB_n)) %>%
   gather(gene, value, -c(species, CIP, marR_n)) %>%
   rename("n" = marR_n) %>%
   mutate(gene2 = sub("(.*?)_(.*?)_sum", "\\1", gene),
@@ -1284,7 +1272,7 @@ grid.arrange(g)
 
 ## Correlation plot
 This plot presents the results of a pearson correlation test for each resistance mechanism. A positive correlation is represented in yellow and red spectra, a negative correlation represented as blue and light blue, and no correlation in green.
-```{r}
+```{r,message = FALSE, warning = FALSE}
 create_corr_matrix <- function(df) {
   df <- df %>%
     as.matrix %>%
@@ -1299,7 +1287,7 @@ create_corr_matrix <- function(df) {
 
 total_df <- acquired_report %>%
   left_join(mut_quant[c("gyrA","gyrB","parC","parE","id")], by = "id") %>%
-  left_join(mut_report[c("id","marR","marA","mdfA","acrB","rpoB")], by = "id")
+  left_join(mut_report[c("id","marR","marA","acrB","rpoB")], by = "id")
 
 col_proc <- c("gyrA","gyrB","parC","parE")
 
@@ -1421,88 +1409,87 @@ ggplot(ST_MIC, aes(reorder(AB, -p), reorder(ST, -p), fill = p))+
 ```
 
 
-## Sequence types and resistance mechanisms
-```{r, fig.width=14, fig.height=16}
-# identify which sequence types are represented over three times
-n_ST <- mlst_data[c("id","ST")] %>%
-  group_by(ST) %>%
-  count() %>%
-  filter(n > 3)
-
-# species ST  
-species_st <- mlst_data[c("id","ST")] %>%
-  left_join(isolate_data[c("id", "species")], by = "id") %>%
-  select(-id) %>%
-  group_by(ST, species) %>%
-  count() %>%
-  filter(ST %in% n_ST$ST)
-
-# prepare micplot data for each ST with n > 3
-micplot_st_df <- mlst_data[c("id", "ST")] %>%
-  left_join(mic_data[c("id", "CIP")], by = "id") %>%
-  group_by(ST, CIP) %>%
-  count() %>%
-  filter(ST %in% n_ST$ST)
-
-# prepare heatmap data frame
-st_heatmap_df <- mlst_data[c("id", "ST")] %>%
-  left_join(mut_report[c("id", "marR")], by = "id") %>%
-  left_join(cols_to_add, by = "id") %>%
-  left_join(acquired_report, by = "id") %>%
-  select(-id) %>%
-  mutate_at(vars(-ST),
-            funs(as.numeric)) %>%
-  group_by(ST) %>%
-  summarise_all(funs(sum, n = n())) %>%
-  ungroup() %>%
-  rename("n" = marR_n) %>%
-  select(-contains("_n")) %>%
-  gather(mechanism, value, -c(ST, n)) %>%
-  mutate(mechanism = sub("_sum", "", mechanism),
-         percent = round(value/n*100),
-         value2 = ifelse(value > 0, 1, 0)) %>%
-  filter(ST %in% n_ST$ST)
-
-# plots
-factor_breaks <- c(0.015,0.03,0.06,0.12,0.25,0.5,1,2,4,8,16,32,64,128,256)
-factor_levels <- c("0.015","0.03","0.06","0.12","0.25","0.5","1","2","4","8","16","32","64","128","256")
-
-## heatmap
-heatmap_st <- ggplot(st_heatmap_df, aes(mechanism, ST, fill = percent))+
-  geom_tile()+
-  scale_fill_viridis(option = "A")+
-  guides(fill = FALSE)+
-  theme(axis.text.x = element_text(angle = 90,
-                                   hjust = 1,
-                                   vjust = 0.3,
-                                   size = 8),
-        axis.title.x = element_blank())
-
-## micplot
-micplot_st <- ggplot(micplot_st_df, aes(ST, CIP))+
-  geom_boxplot(fill = "#67a9cf")+
-  scale_y_continuous(labels = factor_levels,
-                     breaks = factor_breaks,
-                     trans = "log10")+
-  theme(axis.title = element_blank(),
-        axis.text.y = element_blank(),
-        axis.text.x = element_text(size = 8),
-        axis.ticks.y = element_blank())+
-  coord_flip()
-
-# n plot
-nplot_st <- ggplot(species_st, aes(ST, n, fill = species))+
-  geom_col(color = "black")+
-  scale_fill_brewer(palette = "Paired")+
-  theme(axis.title = element_blank(),
-        axis.text.y = element_blank(),
-        axis.text.x = element_text(size = 8),
-        axis.ticks.y = element_blank(),
-        legend.position = c(0.6, 0.95),
-        legend.title = element_blank())+
-  coord_flip()
-
-cowplot::plot_grid(heatmap_st, micplot_st, nplot_st, ncol = 3, align = "h", rel_widths = c(3/6, 2/6, 1/6))
+```{r, fig.width=14, fig.height=16,message = FALSE, warning = FALSE}
+# # identify which sequence types are represented over three times
+# n_ST <- mlst_data[c("id","ST")] %>%
+#   group_by(ST) %>%
+#   count() %>%
+#   filter(n > 3)
+# 
+# # species ST  
+# species_st <- mlst_data[c("id","ST")] %>%
+#   left_join(isolate_data[c("id", "species")], by = "id") %>%
+#   select(-id) %>%
+#   group_by(ST, species) %>%
+#   count() %>%
+#   filter(ST %in% n_ST$ST)
+# 
+# # prepare micplot data for each ST with n > 3
+# micplot_st_df <- mlst_data[c("id", "ST")] %>%
+#   left_join(mic_data[c("id", "CIP")], by = "id") %>%
+#   group_by(ST, CIP) %>%
+#   count() %>%
+#   filter(ST %in% n_ST$ST)
+# 
+# # prepare heatmap data frame
+# st_heatmap_df <- mlst_data[c("id", "ST")] %>%
+#   left_join(mut_report[c("id", "marR")], by = "id") %>%
+#   left_join(cols_to_add, by = "id") %>%
+#   left_join(acquired_report, by = "id") %>%
+#   select(-id) %>%
+#   mutate_at(vars(-ST),
+#             funs(as.numeric)) %>%
+#   group_by(ST) %>%
+#   summarise_all(funs(sum, n = n())) %>%
+#   ungroup() %>%
+#   rename("n" = marR_n) %>%
+#   select(-contains("_n")) %>%
+#   gather(mechanism, value, -c(ST, n)) %>%
+#   mutate(mechanism = sub("_sum", "", mechanism),
+#          percent = round(value/n*100),
+#          value2 = ifelse(value > 0, 1, 0)) %>%
+#   filter(ST %in% n_ST$ST)
+# 
+# # plots
+# factor_breaks <- c(0.015,0.03,0.06,0.12,0.25,0.5,1,2,4,8,16,32,64,128,256)
+# factor_levels <- c("0.015","0.03","0.06","0.12","0.25","0.5","1","2","4","8","16","32","64","128","256")
+# 
+# ## heatmap
+# heatmap_st <- ggplot(st_heatmap_df, aes(mechanism, factor(ST), fill = percent))+
+#   geom_tile()+
+#   scale_fill_viridis(option = "A")+
+#   guides(fill = FALSE)+
+#   theme(axis.text.x = element_text(angle = 90,
+#                                    hjust = 1,
+#                                    vjust = 0.3,
+#                                    size = 8),
+#         axis.title.x = element_blank())
+# 
+# ## micplot
+# micplot_st <- ggplot(micplot_st_df, aes(factor(ST), CIP))+
+#   geom_boxplot(fill = "#67a9cf")+
+#   scale_y_continuous(labels = factor_levels,
+#                      breaks = factor_breaks,
+#                      trans = "log10")+
+#   theme(axis.title = element_blank(),
+#         axis.text.y = element_blank(),
+#         axis.text.x = element_text(size = 8),
+#         axis.ticks.y = element_blank())+
+#   coord_flip()
+# 
+# # n plot
+# nplot_st <- ggplot(species_st, aes(factor(ST), n, fill = species))+
+#   geom_col(color = "black")+
+#   scale_fill_manual(values = palette) +
+#   theme(axis.title = element_blank(),
+#         axis.text.y = element_blank(),
+#         axis.text.x = element_text(size = 8),
+#         axis.ticks.y = element_blank(),
+#         legend.position = c(0.6, 0.95),
+#         legend.title = element_blank())+
+#   coord_flip()
+# 
+# cowplot::plot_grid(heatmap_st, micplot_st, nplot_st, ncol = 3, align = "h", rel_widths = c(3/6, 2/6, 1/6))
 
 ```
 
@@ -1567,7 +1554,7 @@ mic_dotplot <- ggplot(mic_dotplot_data, aes(reorder(factor(id), -n), AM, fill = 
 
 mic_nplot <- ggplot(mic_nplot_data, aes(reorder(factor(group), -group_n), n, fill = species))+
   geom_col(color = "black")+
-  scale_fill_brewer(palette = "Paired")+
+  scale_fill_manual(values = palette) +
   theme(axis.title.x = element_blank(),
         axis.text.x = element_blank(),
         axis.ticks.x = element_blank(),
@@ -1578,10 +1565,79 @@ cowplot::plot_grid(mic_nplot, mic_dotplot, ncol = 1, align = "v")
 
 ```
 
+# Phylogeny
+## Core Genome MLST
+```{r, fig.width=16, fig.height=14, message = FALSE, warning = FALSE}
+cgMLSTdata <- read.table("../data/cgMLST.txt", sep = "\t", row.names=1, colClasses = "factor", header = T)
 
-# GyrB Protein sequence alignment
+palette <- c("Broiler" = "#4575b4",
+             "Pig" = "#74add1",
+             "Red fox" = "#f46d43",
+             "Wild bird" = "#fdae61")
+
+cgMLST_tree <- as.phylo(hclust(daisy(cgMLSTdata, metric="gower")))
+
+ids <- as.data.frame(cgMLST_tree$tip.label)
+names(ids) <- "id"
+
+ids2 <- ids %>%
+  left_join(isolate_data[c("id","species")]) %>%
+  left_join(mlst_data[c("id", "ST")])
+
+cgMLST_tree$tip.label <- ids2$species
+
+group_info <- split(cgMLST_tree$tip.label, f = cgMLST_tree$tip.label)
+cgMLST_tree <- groupOTU(cgMLST_tree, group_info)
+
+cgMLST_tree$tip.label <- ids2$id
+
+p_cgmlst <- ggtree(cgMLST_tree, size = 0.2, color = "#808080", layout = "circular")+
+  geom_tippoint(aes(color = group), size = 2.5)+
+  labs(color = "Species")+
+  scale_color_manual(values = palette)+
+  guides(color = guide_legend(override.aes = list(size = 8)))+
+  theme(legend.position = "right")
+
+palette3 <- c("1-A" = "#8dd3c7",
+              "1-I" = "#80b1d3",
+              "0" = "grey95")
+
+qr_genes <- mut_report[c("id","gyrA","parC","parE","rpoB","marA","marR")] %>%
+  mutate_at(vars(-id),
+            funs(ifelse(. == "1", "1-I", "0")))
+  
+ac_genes <- acquired_report %>%
+  mutate_at(vars(-id),
+            funs(as.numeric)) %>%
+  mutate(qnr = ifelse(rowSums(.[,3:9]) != 0 , 1, 0)) %>%
+  select(id, qepA4, qnr) %>%
+  mutate_at(vars(-id),
+            funs(ifelse(. == "1", "1-A", "0")))
+
+total_gene_data <- qr_genes %>%
+  left_join(ac_genes, by = "id") %>%
+  column_to_rownames("id")
+
+fan_tree <- open_tree(p_cgmlst, 9)
+
+rotated_fan_tree <- rotate_tree(fan_tree, 95)
+
+gheatmap(rotated_fan_tree,
+         total_gene_data,
+         offset = 0.005,
+         width = 0.2,
+         colnames_offset_y = 3,
+         colnames_position = "top",
+         font.size = 2.5) +
+  scale_fill_manual(values = palette3,
+                    labels = c("Absent",
+                               "Acquired gene present",
+                               "Intrinsic gene mutated"))
+```
+
+
 ```{r}
-alignment <- Biostrings::readAAMultipleAlignment("../data/alignment.fasta")
-msaR::msaR(alignment)
+# alignment <- Biostrings::readAAMultipleAlignment("../data/alignment.fasta")
+# msaR::msaR(alignment)
 ```
 
