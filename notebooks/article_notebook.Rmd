@@ -966,6 +966,44 @@ p_values_total
 ```
 
 # Figures
+
+## Total resistance mechanisms
+```{r}
+total_mechanisms <- mut_report %>%
+  select(-nt_change) %>%
+  left_join(acquired_report, by = "id") %>%
+  mutate_at(vars(qnrA1,qnrB19,qnrB6,qnrB60,qnrS1,qnrS2,qnrS4),
+            funs(as.numeric(.))) %>%
+  mutate(qnr = ifelse(rowSums(.[,11:17]) == 0, 0, 1)) %>%
+  select(-c(qnrA1,qnrB19,qnrB6,qnrB60,qnrS1,qnrS2,qnrS4)) %>%
+  gather(gene, result, -id) %>%
+  group_by(gene, result) %>%
+  count() %>%
+  ungroup() %>%
+  mutate(result = ifelse(result == 1, "Present", "Absent")) %>%
+  spread(result, n, fill = 0) %>%
+  rowwise() %>%
+  mutate(Total = Present + Absent,
+         Percent = round((Present/Total)*100, 1),
+         lwr = round(get_binCI(Present, Total)[1], 1),
+         upr = round(get_binCI(Present, Total)[2], 1),
+         type = ifelse(gene %in% c("qnr","qepA4"), "Acquired","Intrinsic"))
+
+palette2 <- c("Acquired" = "#ef8a62",
+              "Intrinsic" = "#67a9cf")
+
+ggplot(total_mechanisms, aes(reorder(gene, -Percent), Percent, fill = type)) +
+  geom_col(color = "black") +
+  geom_errorbar(aes(ymin = lwr, ymax = upr),
+                width = 0.5) +
+  scale_fill_manual(values = palette2) +
+  labs(x = "Genes",
+       y = "Percent (%) Isolates",
+       fill = NULL)
+
+```
+
+
 ## Percent isolates with PMQR and/or QRDR mutations in *gyrA*, *gyrB*, *parC* or *parE*
 ```{r,message = FALSE, warning = FALSE}
 total_report <- mut_report %>%
