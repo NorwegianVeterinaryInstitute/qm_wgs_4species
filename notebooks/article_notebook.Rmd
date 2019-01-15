@@ -42,23 +42,7 @@ The sequences were subjected to quality control with FastQC. Mash screen was use
 To identify resistance genes of interest, the sequences were run through the program "Antimicrobial Resistance Identification By Assembly" (ARIBA), which is included in the Bifrost Pipeline. Acquired resistance genes were detected by the use of the ResFinder database, while mutations in intrinsic genes related to quinolone resistance was identified with the MegaRes database.
 Sequence types was also identified by ARIBA, using the Wirth et al. scheme (*E. coli* #1).
 
-
-
-
-## Further work
-
-- Assemble genomes
-
-- Align assemblies
-
-- Land on methodology for phylogenetic analysis (likely core genome SNP - ML)
-
-
-
 Results from various analyses are listed below.
-
-
-
 
 ```{r load libraries, message=FALSE, warning=FALSE}
 # Libraries
@@ -885,6 +869,20 @@ mic_data %>%
   mutate(AB = sub("_R", "", AB))
 ```
 
+## Sequence types
+```{r}
+mlst_data[,c("id","ST")] %>%
+  group_by(ST) %>%
+  count()
+```
+
+## Sequence types per animal species
+```{r}
+mlst_data[,c("id","ST")] %>%
+  left_join(isolate_data[,c("id","species")], by = "id") %>%
+  group_by(ST, species) %>%
+  count()
+```
 
 ## Significant differences between resistance mechanisms for each animal species
 ```{r, warning = F, message = F}
@@ -1070,6 +1068,8 @@ mut_report %>%
       lwr = round(get_binCI(Present, Total)[1], 1),
       upr = round(get_binCI(Present, Total)[2], 1)
     ) %>%
+    mutate(species = factor(species,
+                            levels = c("Broiler","Pig","Wild bird","Red fox"))) %>%
     ggplot(aes(key, Percent, fill = species)) +
     geom_col(color = "black",
              position = position_dodge(1)) +
@@ -1079,6 +1079,7 @@ mut_report %>%
       position = position_dodge(1)
     ) +
     scale_fill_manual(values = palette) +
+    scale_x_discrete(limits = c("gyrA","gyrB","parC","parE","marA","marR","acrB","rpoB")) +
     labs(y = "Percent (%) of isolates") +
     guides(fill = FALSE) +
     theme_classic() +
@@ -1408,91 +1409,6 @@ ggplot(ST_MIC, aes(reorder(AB, -p), reorder(ST, -p), fill = p))+
   facet_wrap(~ species, scales = "free_y", ncol = 2)
 ```
 
-
-```{r, fig.width=14, fig.height=16,message = FALSE, warning = FALSE}
-# # identify which sequence types are represented over three times
-# n_ST <- mlst_data[c("id","ST")] %>%
-#   group_by(ST) %>%
-#   count() %>%
-#   filter(n > 3)
-# 
-# # species ST  
-# species_st <- mlst_data[c("id","ST")] %>%
-#   left_join(isolate_data[c("id", "species")], by = "id") %>%
-#   select(-id) %>%
-#   group_by(ST, species) %>%
-#   count() %>%
-#   filter(ST %in% n_ST$ST)
-# 
-# # prepare micplot data for each ST with n > 3
-# micplot_st_df <- mlst_data[c("id", "ST")] %>%
-#   left_join(mic_data[c("id", "CIP")], by = "id") %>%
-#   group_by(ST, CIP) %>%
-#   count() %>%
-#   filter(ST %in% n_ST$ST)
-# 
-# # prepare heatmap data frame
-# st_heatmap_df <- mlst_data[c("id", "ST")] %>%
-#   left_join(mut_report[c("id", "marR")], by = "id") %>%
-#   left_join(cols_to_add, by = "id") %>%
-#   left_join(acquired_report, by = "id") %>%
-#   select(-id) %>%
-#   mutate_at(vars(-ST),
-#             funs(as.numeric)) %>%
-#   group_by(ST) %>%
-#   summarise_all(funs(sum, n = n())) %>%
-#   ungroup() %>%
-#   rename("n" = marR_n) %>%
-#   select(-contains("_n")) %>%
-#   gather(mechanism, value, -c(ST, n)) %>%
-#   mutate(mechanism = sub("_sum", "", mechanism),
-#          percent = round(value/n*100),
-#          value2 = ifelse(value > 0, 1, 0)) %>%
-#   filter(ST %in% n_ST$ST)
-# 
-# # plots
-# factor_breaks <- c(0.015,0.03,0.06,0.12,0.25,0.5,1,2,4,8,16,32,64,128,256)
-# factor_levels <- c("0.015","0.03","0.06","0.12","0.25","0.5","1","2","4","8","16","32","64","128","256")
-# 
-# ## heatmap
-# heatmap_st <- ggplot(st_heatmap_df, aes(mechanism, factor(ST), fill = percent))+
-#   geom_tile()+
-#   scale_fill_viridis(option = "A")+
-#   guides(fill = FALSE)+
-#   theme(axis.text.x = element_text(angle = 90,
-#                                    hjust = 1,
-#                                    vjust = 0.3,
-#                                    size = 8),
-#         axis.title.x = element_blank())
-# 
-# ## micplot
-# micplot_st <- ggplot(micplot_st_df, aes(factor(ST), CIP))+
-#   geom_boxplot(fill = "#67a9cf")+
-#   scale_y_continuous(labels = factor_levels,
-#                      breaks = factor_breaks,
-#                      trans = "log10")+
-#   theme(axis.title = element_blank(),
-#         axis.text.y = element_blank(),
-#         axis.text.x = element_text(size = 8),
-#         axis.ticks.y = element_blank())+
-#   coord_flip()
-# 
-# # n plot
-# nplot_st <- ggplot(species_st, aes(factor(ST), n, fill = species))+
-#   geom_col(color = "black")+
-#   scale_fill_manual(values = palette) +
-#   theme(axis.title = element_blank(),
-#         axis.text.y = element_blank(),
-#         axis.text.x = element_text(size = 8),
-#         axis.ticks.y = element_blank(),
-#         legend.position = c(0.6, 0.95),
-#         legend.title = element_blank())+
-#   coord_flip()
-# 
-# cowplot::plot_grid(heatmap_st, micplot_st, nplot_st, ncol = 3, align = "h", rel_widths = c(3/6, 2/6, 1/6))
-
-```
-
 ## Phenotypic resistance combinations
 This plot presents the various phenotypic resistance combinations present in the isolates, and how many isolates for each animal species in each group.
 ```{r, fig.width=12, fig.height=10}
@@ -1622,7 +1538,7 @@ fan_tree <- open_tree(p_cgmlst, 9)
 
 rotated_fan_tree <- rotate_tree(fan_tree, 95)
 
-gheatmap(rotated_fan_tree,
+final_tree <- gheatmap(rotated_fan_tree,
          total_gene_data,
          offset = 0.005,
          width = 0.2,
@@ -1630,9 +1546,10 @@ gheatmap(rotated_fan_tree,
          colnames_position = "top",
          font.size = 2.5) +
   scale_fill_manual(values = palette3,
-                    labels = c("Absent",
+                    labels = c("Gene/Mutation absent",
                                "Acquired gene present",
                                "Intrinsic gene mutated"))
+final_tree
 ```
 
 
