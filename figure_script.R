@@ -4,16 +4,15 @@ gene_names <- names(mut_report)
 
 gene_names <- gene_names[-1]
 
+
+palette <- c("Broiler" = "#4575b4",
+             "Pig" = "#74add1",
+             "Red fox" = "#f46d43",
+             "Wild bird" = "#fdae61")
+
 ggsave(
   "C:/Users/VI1511/OneDrive - Veterinærinstituttet/Artikler/qrec_wgs/figures/percent_mut_per_species.tiff",
   mut_report %>%
-    mutate(
-      ref = gsub("(.*?)\\_.+", "\\1", ref),
-      ref = sub("^\\d*-?(\\d{4}-.*)", "\\1", ref),
-      ref = sub("^(\\d{4}-\\d{2}-\\d*)-1", "\\1", ref)
-    ) %>%
-    arrange(desc(ref)) %>%
-    mutate(id = id) %>%
     left_join(isolate_data, by = "id") %>%
     gather(key, value, gene_names) %>%
     group_by(key, value, species) %>%
@@ -28,6 +27,7 @@ ggsave(
       lwr = round(get_binCI(Present, Total)[1], 1),
       upr = round(get_binCI(Present, Total)[2], 1)
     ) %>%
+    mutate(species = factor(species, levels = c("Broiler","Pig","Wild bird","Red fox"))) %>%
     ggplot(aes(key, Percent, fill = species)) +
     geom_col(color = "black",
              position = position_dodge(1)) +
@@ -36,11 +36,8 @@ ggsave(
       width = 0.6,
       position = position_dodge(1)
     ) +
-    scale_x_discrete(limits = c(
-      "gyrA", "gyrB", "parC", "parE",
-      "marR", "soxS", "tolC"
-    )) +
-    scale_fill_brewer(palette = "Paired") +
+    scale_fill_manual(values = palette) +
+    scale_x_discrete(limits = c("gyrA","gyrB","parC","parE","marA","marR","acrB","rpoB")) +
     labs(y = "Percent (%) of isolates") +
     guides(fill = FALSE) +
     theme_classic() +
@@ -65,20 +62,11 @@ ggsave(
 )
 
 
-
 qnr_genes <- c("qnrA1","qnrB19","qnrB6","qnrB60","qnrS1","qnrS2","qnrS4")
-
 
 ggsave(
   "C:/Users/VI1511/OneDrive - Veterinærinstituttet/Artikler/qrec_wgs/figures/percent_qnr_per_species.tiff",
   acquired_report %>%
-    mutate(
-      ref = gsub("(.*?)\\_.+", "\\1", ref),
-      ref = sub("^\\d*-?(\\d{4}-.*)", "\\1", ref),
-      ref = sub("^(\\d{4}-\\d{2}-\\d*)-1", "\\1", ref)
-    ) %>%
-    arrange(desc(ref)) %>%
-    mutate(id = id) %>%
     left_join(isolate_data, by = "id") %>%
     gather(key, value, qnr_genes) %>%
     group_by(key, value, species) %>%
@@ -101,7 +89,7 @@ ggsave(
       width = 0.6,
       position = position_dodge(0.9)
     ) +
-    scale_fill_brewer(palette = "Paired") +
+    scale_fill_manual(values = palette) +
     labs(y = "Percent (%) of isolates",
          fill = NULL) +
     theme_classic() +
@@ -119,10 +107,3 @@ ggsave(
   height = 25,
   width = 30
 )
-
-
-
-
-
-
-
