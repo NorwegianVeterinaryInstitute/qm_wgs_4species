@@ -1531,6 +1531,8 @@ palette <- c("Broiler" = "#4575b4",
 
 cgMLST_tree <- as.phylo(hclust(daisy(cgMLSTdata, metric="gower")))
 
+test <- hclust(daisy(cgMLSTdata, metric="gower"))
+
 ids <- as.data.frame(cgMLST_tree$tip.label)
 names(ids) <- "id"
 

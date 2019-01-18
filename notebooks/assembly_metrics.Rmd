@@ -140,25 +140,14 @@ embed_data <- function(x = mtcars, filename = "file.csv", label= "Get data") {
 
 `r embed_data(metrics, filename = "assembly_metrics.csv")`
 
-# Plots
-
+# Mean metrics
 ```{r}
-ggplot(metrics2, aes(as.numeric(largest_contig), as.numeric(N50)))+
-  geom_point()+
-  geom_smooth(method = "lm")+
-  theme_classic()+
-  labs(x = "Largest contig size",
-       y = "N50")
+print(paste0("Mean number of contigs: ", round(mean(metrics2$no_of_contigs), 1)))
+print(paste0("Mean size of largest contigs: ", round(mean(metrics2$largest_contig), 1)))
+print(paste0("Mean N50: ", round(mean(metrics2$N50), 1)))
+print(paste0("Mean NG50: ", round(mean(as.numeric(metrics2$NG50)), 1)))
 
 ```
 
-```{r}
-ggplot(metrics2, aes(as.numeric(no_of_contigs), as.numeric(N50)))+
-  geom_point()+
-  geom_smooth(method = "lm")+
-  theme_classic()+
-  labs(x = "Number of contigs",
-       y = "N50")
-```
 
 
