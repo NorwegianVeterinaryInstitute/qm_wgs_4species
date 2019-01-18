@@ -1,0 +1,1508 @@
+---
+title: "Article data analysis 2"
+author: "Håkon Kaspersen"
+date: '`r format(Sys.time(), "%d.%m.%Y")`'
+always_allow_html: yes
+output:
+    html_document:
+      code_folding: hide
+      df_print: paged
+      highlight: kate
+      number_sections: yes
+      theme: flatly
+      toc: yes
+      toc_depth: 3
+      toc_float:
+        collapsed: yes
+    pdf_document:
+      toc: yes
+      toc_depth: '3'
+---
+
+```{r load libraries, message=FALSE, warning=FALSE}
+# Libraries
+if (!require("pacman")) install.packages("pacman")
+pacman::p_load(dplyr, ggplot2, tidyr, cowplot, viridis, forcats, radiant.data, purrr, phangorn, gridExtra, ggtree, htmlTable, ape, cluster, tibble, Biostrings, seqinr, stringr)
+```
+
+```{r Import data, include = FALSE}
+# Collapses data frame to unique lines while ignoring NA's
+func_paste <- function(x) paste(unique(x[!is.na(x)]), collapse = ", ")
+
+"%not_in%" <- Negate("%in%")
+
+id_data <- read.table("../data/id.txt",
+                      sep = "\t",
+                      header = TRUE,
+                      stringsAsFactors = F)
+
+isolate_data <- read.table("../data/isolate_data.txt",
+                           sep = "\t",
+                           header = T,
+                           stringsAsFactors = F) %>%
+  filter(id %not_in% c("2016-17-565-1-S",
+                       "2016-02-428-2-S",
+                       "2016-02-486-2-S",
+                       "2016-02-732-2-S",
+                       "2014-01-1741-1-S"))
+
+two_reads <- read.table("../data/no_of_reads.txt",
+                          sep = "\t",
+                          header = F,
+                          stringsAsFactors = F) %>%
+  dplyr::rename("ref" = V1,
+         "reads" = V2) %>%
+  mutate(ref = gsub(".+/(.*?)\\.fastq\\.gz", "\\1", ref),
+         type = ifelse(grepl("R1", ref) == TRUE, "R1", "R2")) %>%
+  mutate(ref = gsub("(.*?)_L00[0-9]_R[1-2]_00[0-9]","\\1", ref)) %>%
+  group_by(ref) %>%
+  mutate(id = n()) %>%
+  {. ->> four_reads} %>%
+  filter(id == 2) %>%
+  spread(type, reads) %>%
+  dplyr::rename("R1-1" = R1,
+         "R2-1" = R2) %>%
+  mutate("R1-2" = NA,
+         "R2-2" = NA) %>%
+  select(-id) %>%
+  mutate_all(funs(as.character(.)))
+
+four_reads <- four_reads %>%
+  filter(id == 4) %>%
+  group_by(ref) %>%
+  mutate(id = 1:n()) %>%
+  spread(id, reads) %>%
+  summarise_all(funs(func_paste)) %>%
+  dplyr::rename("R1-1" = `1`,
+         "R2-1" = `2`,
+         "R1-2" = `3`,
+         "R2-2" = `4`) %>%
+  select(-type) %>%
+  mutate_all(funs(as.character(.)))
+
+no_of_reads <- as.data.frame(rbind(as.matrix(two_reads), as.matrix(four_reads))) %>%
+  left_join(id_data, by = "ref") %>%
+  select(id, everything(), -ref) %>%
+  filter(id %not_in% c("2016-17-565-1-S",
+                       "2016-02-428-2-S",
+                       "2016-02-486-2-S",
+                       "2016-02-732-2-S",
+                       "2014-01-1741-1-S"))
+
+mic_data <- read.table("../data/mic_data.txt",
+                           sep = "\t",
+                           header = T,
+                           stringsAsFactors = F) %>%
+  filter(id %not_in% c("2016-17-565-1-S",
+                       "2016-02-428-2-S",
+                       "2016-02-486-2-S",
+                       "2016-02-732-2-S",
+                       "2014-01-1741-1-S"))
+
+mlst_data <- read.table("../data/mlst_results.txt", sep = "\t", header = TRUE, stringsAsFactors = F) %>%
+  filter(id %not_in% "2014-01-1741-1-S")
+```
+
+
+```{r ARIBA analysis, include = FALSE}
+megares_report_loc <- "../data/ariba/megares_results"
+resfinder_report_loc <- "../data/ariba/resfinder_results"
+ac_genes <- c("qnr","oqx","qep","mfp","mcb")
+mut_genes <- c("gyr","par","marR","marA","acrB","soxR","acrR","nor","ydh","sdi","rpoB")
+
+# adjust parameters for filtering
+if (length(ac_genes) == 1) {
+  if (grepl("all", ac_genes, ignore.case = TRUE) == TRUE) {
+    ac_genes <- "ALL"
+    } else {
+      ac_genes <- ac_genes
+    }
+}
+
+if (length(mut_genes) == 1) {  
+  if (grepl("all", mut_genes, ignore.case = TRUE) == TRUE) {
+    mut_genes <- "ALL"
+    } else {
+      mut_genes <- mut_genes
+    }
+}
+# -------------------------------------- Libraries
+
+if (!require("pacman")) install.packages("pacman")
+pacman::p_load(ggplot2,dplyr,tidyr,gridExtra,grid,
+               forcats,purrr,stringr,kableExtra,
+               knitr,IRdisplay,reprex,svglite)
+
+# -------------------------------------- Functions
+
+func_paste2 <- function(x) paste(unique(x[!is.na(x)]), collapse = ",")
+
+# Confidence interval function
+get_binCI <- function(x, n) as.numeric(setNames(binom.test(x,n)$conf.int*100,
+                                                c("lwr", "upr")))
+
+# Identifies filenames in input folder
+file_names <- function(filepath) {
+  files <- list.files(path = filepath, pattern = "amr_report.tsv")
+  return(files)
+}
+
+# Import ariba data from report.tsv from chosen database used in ariba
+get_ariba_data <- function(filepath) {
+  files <- file_names(filepath)
+  
+  data_list <- lapply(files,
+                      FUN = function(file) {
+                        read.delim(
+                          paste0(filepath, "/", file),
+                          stringsAsFactors = F,
+                          header = TRUE,
+                          sep = "\t"
+                        )
+                      })
+  
+  names(data_list) <- files
+  data <- bind_rows(lapply(data_list, function(x) map(x, as.character)), .id = "ref")
+  return(data)
+}
+
+# Corrects the gene names found in the "cluster" column
+fix_gene_names <- function(df) {
+  genes <- unique(df$ref_name)
+  new_names <- gsub("^(.*?)\\..*", "\\1", genes)
+  new_names <- gsub("_", "", new_names, fixed = T)
+  new_names <- gsub("-", "", new_names, fixed = T)
+  
+  gene_names <- c()
+  for (i in new_names) {
+    p <- paste(tolower(substring(i, 1,3)), substring(i, 4), sep = "", collapse = " ")
+    gene_names <- c(gene_names,p)
+  }
+  df2 <- data.frame(genes,gene_names) %>%
+    mutate(genes = as.character(genes)) %>%
+    dplyr::rename(ref_name = genes)
+  
+  df <- df %>%
+    left_join(df2, by = "ref_name") %>%
+    mutate(gene_names = as.character(gene_names),
+           ref = gsub("(.*?)_amr_report.tsv", "\\1", ref))
+  
+  return(df)
+}
+
+# Function for selecting genes of interest and filtering the 
+# columns in the data frame on the resulting vector
+select_genes <- function(df, gene_string) {
+  names_df <- names(df)
+  x <- "ref"
+  for (i in names_df) {
+    for (j in gene_string) {
+      if (str_detect(i, regex(j, ignore_case = T)) == TRUE) {
+        x <- c(x, i)
+      }
+    }
+  }
+  df <- df %>%
+    select(one_of(x))
+  return(df)
+}
+
+# Allowed flags from the ARIBA report
+flag_selection <- c("19","27","147","155","403",
+                    "411","915","923","787","795",
+                    "531","539","659","667","787","795")  
+
+# Function that returns info on flag selection
+check_flags <- function(df) {
+  df <- df %>%
+    select(ref, gene_names, flag, ref_ctg_change, ref_nt, ctg_nt) %>%
+    mutate(flag_result = flag %in% flag_selection,
+           flag_result = as.integer(flag_result),
+           nt_change = paste(ref_nt, ctg_nt, sep = "-")) %>%
+    mutate(nt_change = ifelse(nt_change == ".-.", "0", nt_change)) %>%
+    dplyr::rename("gene" = gene_names) %>%
+    select(-c(ref_nt, ctg_nt))
+  return(df)
+}
+
+# Function that handles megares data and returns a data frame with information on whether a gene
+# is mutated or not. Includes control for QRDR in gyrA.
+create_mut_table <- function(df) {
+  df <- df %>%
+    mutate(ref_ctg_change = ifelse(ref_ctg_change == ".", "", ref_ctg_change),
+           ref_nt = ifelse(ref_nt == ".", "", ref_nt),
+           ctg_nt = ifelse(ctg_nt == ".", "", ctg_nt),
+           ref_ctg_nt_change = paste(ref_nt, ctg_nt, sep = "-"),
+           mutation = paste(ref_ctg_change, ref_ctg_nt_change, sep = "/"),
+           mutation = ifelse(mutation == "/-", "0", mutation)) %>%
+    select(ref, gene_names, flag, mutation) %>%
+    filter(flag %in% flag_selection) %>%
+    mutate(id = 1:n()) %>%
+    spread(gene_names, mutation) %>%
+    group_by(ref) %>%
+    summarise_all(funs(func_paste)) %>%
+    select(-c(id, flag)) %>%
+    gather(gene, mut, -ref) %>%
+    mutate(mut = ifelse(mut == "" | mut == "." | is.na(mut) == TRUE, 0, mut),
+           result = ifelse(mut != 0, 1, 0),
+           result = as.integer(result),
+           type = "mut",
+           nt_change = gsub("[^,]+?/([^,]+?)", "\\1", mut),
+           mut = gsub("([^/]+)/[^,]+", "\\1", mut))
+  return(df)
+}                    
+
+# Corrects or mutations in QRDR for gyrA, gyrB, parC and parE genes.
+# The function returns columns of 1/0 values for whether or not the 
+# mutations reported by ARIBA is within the QRDR in the gene:
+# gyrA: AA 67 - 106
+# gyrB: AA 333 - 481
+# ParC: AA 51 - 170
+# parE: AA 366 - 523
+# Source: https://www.ncbi.nlm.nih.gov/pmc/articles/PMC1142146/pdf/cjvr68pg229.pdf
+fix_gyr_par_results <- function(df) {
+  df <- df %>%
+    mutate(gyrA_result = mut %>% # control for mutation within QRDR for gyrA
+             str_extract_all("\\d+") %>% # from reprex package
+             map(as.integer) %>% # converts all to integer
+             map_lgl(~ any(.x >= 67L & .x <= 106L)), # returns TRUE/FALSE whether value is within range or not
+           gyrA_result = if_else(gene != "gyrA", NA, gyrA_result), # filters out results for all other genes
+           gyrA_result = as.integer(gyrA_result),
+           gyrB_result = mut %>% # control for mutation within QRDR for gyrB
+             str_extract_all("\\d+") %>%
+             map(as.integer) %>%
+             map_lgl(~ any(.x >= 333L & .x <= 481L)),
+           gyrB_result = if_else(gene != "gyrB", NA, gyrB_result),
+           gyrB_result = as.integer(gyrB_result),
+           parC_result = mut %>% # control for mutation within QRDR for parC
+             str_extract_all("\\d+") %>% 
+             map(as.integer) %>% 
+             map_lgl(~ any(.x >= 51L & .x <= 170L)),
+           parC_result = if_else(gene != "parC", NA, parC_result),
+           parC_result = as.integer(parC_result),
+           parE_result = mut %>% # control for mutation within QRDR for parE
+             str_extract_all("\\d+") %>% 
+             map(as.integer) %>% 
+             map_lgl(~ any(.x >= 366L & .x <= 523L)),
+           parE_result = if_else(gene != "parE", NA, parE_result),
+           parE_result = as.integer(parE_result)) %>%
+    mutate(result_gyr_par = case_when(gene == "gyrA" ~ gyrA_result,
+                                      gene == "gyrB" ~ gyrB_result,
+                                      gene == "parC" ~ parC_result,
+                                      gene == "parE" ~ parE_result)) %>%
+    mutate(result_total = ifelse(gene %in% c("gyrA","gyrB","parC","parE"), result_gyr_par, result)) %>%
+    select(-c(gyrA_result,
+              gyrB_result,
+              parC_result,
+              parE_result,
+              result_gyr_par,
+              result))
+  return(df)
+}
+
+# Function that handles resfinder data and returns a data frame with 
+# presence/absence for acquired genes                           
+create_acquired_table <- function(df) {
+  df <- df %>%
+    select(ref, gene_names, flag, ref_ctg_change) %>%
+    mutate(id = 1:n()) %>%
+    filter(flag %in% flag_selection) %>%
+    spread(gene_names, ref_ctg_change) %>%
+    group_by(ref) %>%
+    summarise_all(funs(func_paste)) %>%
+    mutate(ref = gsub("^(.*?)_amr_report.tsv$", "\\1", ref)) %>%
+    select(-c(id, flag)) %>%
+    gather(gene, result,-ref) %>%
+    mutate(result_total = ifelse(result == "", 0, 1),
+           result_total = as.character(result_total),
+           type = "gene") %>%
+    select(-result)
+  return(df)
+}
+
+# Function that returns a filtered dataframe based on the string "genes"
+filter_mut_table <- function(df) {
+  report_genes <- unique(df$gene)
+  grep_genes <- c()
+  for (gene in mut_genes) {
+    for (g in report_genes) {
+      if (grepl(gene, g, ignore.case = T) == TRUE) {
+        grep_genes <- c(grep_genes, g)
+      }
+    }
+  }
+  df <- df %>%
+    filter(gene %in% grep_genes) %>%
+    mutate(gene = as.character(gene))
+  return(df)
+}
+
+# Function that returns a filtered dataframe based on the string "acquired_genes"
+filter_acquired_table <- function(df) {
+  report_genes <- unique(df$gene)
+  grep_genes <- c()
+  for (gene in ac_genes) {
+    for (g in report_genes) {
+      if (grepl(gene, g, ignore.case = T) == TRUE) {
+        grep_genes <- c(grep_genes, g)
+      }
+    }
+  }
+  df <- df %>%
+    filter(gene %in% grep_genes) %>%
+    mutate(gene = gsub("_", "", gene),
+           gene = as.character(gene))
+  return(df)
+}
+
+# calculates percentage of present/absent mutations and genes
+calc_stats <- function(df) {
+  df <- df %>%
+    group_by(gene, result_total) %>%
+    dplyr::count() %>%
+    ungroup() %>%
+    mutate(result_total = if_else(result_total == 1, "Present", "Absent")) %>%
+    spread(result_total, n, fill = 0) %>%
+    rowwise() %>%
+    mutate(Total = Present + Absent,
+           Percent = round(Present/Total*100, 1))
+  return(df)
+}
+
+# calculates how many mutations are present in the genes
+# gyrA, gyrB, parC and parE
+calc_no_of_mut <- function(df) {
+  df1 <- df %>%
+    filter(gene %in% c("gyrA","parC","gyrB","parE")) %>%
+    mutate(entries = sapply(strsplit(.$mut, ","), FUN = function(x) {length(x)})) %>%
+    separate(mut, into = as.character(c(1:max(.$entries)))) %>%
+    select(-entries) %>%
+    gather(id, mut, -c(ref, gene, result, type))
+  
+  df2 <- fix_gyr_par_results(df1)
+  
+  df3 <- df2 %>%
+    mutate(test = ifelse(mut != "0" & result_total == 0, 0, 1)) %>%
+    filter(test == 1) %>%
+    spread(gene, mut) %>%
+    group_by(ref) %>%
+    summarise_all(funs(func_paste)) %>%
+    mutate_at(.vars = vars(c("gyrA","gyrB","parC","parE")),
+              .funs = function(x) ifelse(x == "0", "", x)) %>%
+    mutate(mut_gyrA = sapply(strsplit(.$gyrA, ","), FUN = function(x) {length(x)}),
+           mut_gyrB = sapply(strsplit(.$gyrB, ","), FUN = function(x) {length(x)}),
+           mut_parC = sapply(strsplit(.$parC, ","), FUN = function(x) {length(x)}),
+           mut_parE = sapply(strsplit(.$parE, ","), FUN = function(x) {length(x)})) %>%
+    select(-c(type, id, result_total, test)) %>%
+    mutate_at(.vars = vars(c("gyrA","gyrB","parC","parE")),
+              .funs = function(x) ifelse(x == "", "0", x))
+  return(df3)
+}
+
+# creates a data frame with one row per sample, and 1/0 results 
+# for mutations in respective genes in columns
+create_mut_report <- function(df) {
+  df <- df %>%
+    select(-mut) %>%
+    group_by(id) %>%
+    mutate(id2 = 1:n()) %>%
+    spread(gene, result_total) %>%
+    summarise_all(funs(func_paste)) %>%
+    select(-c(id2, type))
+  return(df)
+}
+
+# creates a data frame with one row per sample, and 1/0 results
+# for acquired genes in columns
+create_acquired_report <- function(df) {
+  df <- df %>%
+    group_by(id) %>%
+    mutate(id2 = 1:n()) %>%
+    spread(gene, result_total) %>%
+    summarise_all(funs(func_paste)) %>%
+    select(-c(id2, type))
+  return(df)
+}
+
+# -------------------------------------- Analysis
+# Import data
+mut_data <- get_ariba_data(megares_report_loc)
+acquired_data <- get_ariba_data(resfinder_report_loc)
+
+# Clean data
+clean_mut_data <- fix_gene_names(mut_data)
+clean_acquired_data <- fix_gene_names(acquired_data)
+
+# Check flags
+mut_flags <- check_flags(clean_mut_data) %>%
+  left_join(id_data, by = "ref") %>%
+  select(id, everything(), -ref) %>%
+  filter(id %not_in% c("2016-17-565-1-S",
+                       "2016-02-428-2-S",
+                       "2016-02-486-2-S",
+                       "2016-02-732-2-S",
+                       "2014-01-1741-1-S"))
+
+acquired_flags <- check_flags(clean_acquired_data) %>%
+  left_join(id_data, by = "ref") %>%
+  select(id, everything(), -ref) %>%
+  filter(id %not_in% c("2016-17-565-1-S",
+                       "2016-02-428-2-S",
+                       "2016-02-486-2-S",
+                       "2016-02-732-2-S",
+                       "2014-01-1741-1-S"))
+
+# Wrangle
+mut_table <- create_mut_table(clean_mut_data)
+mut_table_fixed <- fix_gyr_par_results(mut_table) %>%
+  left_join(id_data, by = "ref") %>%
+  select(id, everything(), -ref) %>%
+  filter(id %not_in% c("2016-17-565-1-S",
+                       "2016-02-428-2-S",
+                       "2016-02-486-2-S",
+                       "2016-02-732-2-S",
+                       "2014-01-1741-1-S"))
+
+mut_filtered <- filter_mut_table(mut_table_fixed)
+acquired_table <- create_acquired_table(clean_acquired_data) %>%
+  left_join(id_data, by = "ref") %>%
+  select(id, everything(), -ref) %>%
+  filter(id %not_in% c("2016-17-565-1-S",
+                       "2016-02-428-2-S",
+                       "2016-02-486-2-S",
+                       "2016-02-732-2-S",
+                       "2014-01-1741-1-S"))
+
+acquired_filtered <- filter_acquired_table(acquired_table)
+
+# Stats
+if (length(mut_genes) == 1) {
+  if (mut_genes == "ALL") {
+    mut_stats <- calc_stats(mut_table_fixed)
+    mut_report <- create_mut_report(mut_table_fixed)
+    }
+} else {
+  mut_stats <- calc_stats(mut_filtered)
+  mut_report <- create_mut_report(mut_filtered)
+}
+
+if (length(ac_genes) == 1) {
+  if (ac_genes == "ALL") {
+    acquired_stats <- calc_stats(acquired_table)
+    acquired_report <- create_acquired_report(acquired_table)
+  }
+} else {
+  acquired_stats <- calc_stats(acquired_filtered)
+  acquired_report <- create_acquired_report(acquired_filtered)
+}
+
+mut_quant <- suppressWarnings(calc_no_of_mut(mut_table)) %>%
+  left_join(id_data, by = "ref") %>%
+  select(id, everything(), -ref) %>%
+  filter(id %not_in% c("2016-17-565-1-S",
+                       "2016-02-428-2-S",
+                       "2016-02-486-2-S",
+                       "2016-02-732-2-S",
+                       "2014-01-1741-1-S"))
+
+# ---------------------------------- Tables
+
+# number of mutations table
+mut_no <- mut_quant %>%
+  group_by(mut_gyrA, mut_gyrB, mut_parC, mut_parE) %>%
+  dplyr::count()
+
+# number of isolates per mutation combination
+mut_comb <- mut_quant %>%
+  group_by(gyrA, gyrB, parC, parE) %>%
+  dplyr::count()
+```
+
+# Double-check ARIBA results with annotated sequences from Prokka
+```{r, warning=FALSE, message=FALSE}
+# Functions
+mismatches <- function(query, ref) {
+  pairwiseAlignment(ref, query, substitutionMatrix = "BLOSUM50",
+                    gapOpening = 3, gapExtension = 1) %>%
+    mismatchTable() %>%
+    mutate(ID=names(query),
+           Pos=PatternStart,
+           Reference_AA=as.character(PatternSubstring),
+           Sample_AA=as.character(SubjectSubstring)) %>%
+    select(ID, Reference_AA, Sample_AA, Pos) %>%
+    filter(Sample_AA != "X")
+}  
+
+# Import sequence data
+gyrA <- readAAStringSet("../data/Prokka/DNA_gyrase_GYRA_aa_sequences.fa")
+parC <- readAAStringSet("../data/Prokka/Topoisomerase_IV_subunit_A_aa_sequences.fa")
+parE <- readAAStringSet("../data/Prokka/DNA_topoisomerase_IV_subunit_B_aa_sequences.fa")
+
+# Identify results from ARIBA
+mut_gyrA <- mut_quant %>%
+  select(id, gyrA) %>%
+  mutate(entries = sapply(strsplit(.$gyrA, ","),
+                          FUN = function(x) {length(x)})) %>%
+  separate(gyrA, into = as.character(c(1:max(.$entries)))) %>%
+  select(-entries) %>%
+  gather(key, value, `1`,`2`) %>%
+  filter(is.na(value) == FALSE) %>%
+  select(-key) %>%
+  group_by(id) %>%
+  mutate(test = 1:n()) %>%
+  ungroup()
+
+# Run mutation identification analysis on Prokka sequences and
+# match to ARIBA results
+gyrA_results <- bind_rows(lapply(seq_along(gyrA[-1]),
+                            function(i) mismatches(gyrA[i + 1],
+                                                   gyrA[1]))) %>%
+  mutate(mutation = paste0(Reference_AA, Pos, Sample_AA)) %>%
+  select(ID, mutation) %>%
+  mutate(ID = sub(".faa", "", ID)) %>%
+  dplyr::rename("ref" = ID,
+                "gyrA_prokka" = mutation) %>%
+  left_join(id_data, by = "ref") %>%
+  select(id, gyrA_prokka) %>%
+  mutate(gyrA_result = gyrA_prokka %>% # control for mutation within QRDR for gyrA
+             str_extract_all("\\d+") %>% # from reprex package
+             map(as.integer) %>% # converts all to integer
+             map_lgl(~ any(.x >= 67L & .x <= 106L))) %>%
+  filter(gyrA_result == TRUE) %>%
+  group_by(id) %>%
+  mutate(test = 1:n()) %>%
+  ungroup() %>%
+  left_join(mut_gyrA, by = c("id","test")) %>%
+  select(-test) %>%
+  dplyr::rename("gyrA_ariba" = value) %>%
+  filter(id %not_in% c("2016-17-565-1-S",
+                       "2016-02-428-2-S",
+                       "2016-02-486-2-S",
+                       "2016-02-732-2-S",
+                       "2014-01-1741-1-S")) %>%
+  select(-gyrA_result)
+
+# Identify results from ARIBA
+mut_parC <- mut_quant %>%
+  select(id, parC) %>%
+  mutate(entries = sapply(strsplit(.$parC, ","), FUN = function(x) {length(x)})) %>%
+  separate(parC, into = as.character(c(1:max(.$entries)))) %>%
+  select(-entries) %>%
+  gather(key, value, `1`,`2`) %>%
+  filter(is.na(value) == FALSE) %>%
+  select(-key) %>%
+  group_by(id) %>%
+  mutate(test = 1:n()) %>%
+  ungroup()
+
+# Run mutation identification analysis on Prokka sequences and
+# match to ARIBA results
+parC_results <- bind_rows(lapply(seq_along(parC[-1]),
+                                 function(i) mismatches(parC[i + 1],
+                                                        parC[1]))) %>%
+  mutate(Pos = Pos + 22) %>%
+  mutate(mutation = paste0(Reference_AA, Pos, Sample_AA)) %>%
+  select(ID, mutation) %>%
+  mutate(ID = sub(".faa", "", ID)) %>%
+  dplyr::rename("ref" = ID,
+                "parC_prokka" = mutation) %>%
+  left_join(id_data, by = "ref") %>%
+  select(id, parC_prokka) %>%
+  mutate(parC_result = parC_prokka %>%
+             str_extract_all("\\d+") %>% 
+             map(as.integer) %>% 
+             map_lgl(~ any(.x >= 51L & .x <= 170L))) %>%
+  filter(parC_result == TRUE) %>%
+  group_by(id) %>%
+  mutate(test = 1:n()) %>%
+  ungroup() %>%
+  left_join(mut_parC, by = c("id","test")) %>%
+  select(-test) %>%
+  dplyr::rename("parC_ariba" = value) %>%
+  filter(id %not_in% c("2016-17-565-1-S",
+                       "2016-02-428-2-S",
+                       "2016-02-486-2-S",
+                       "2016-02-732-2-S",
+                       "2014-01-1741-1-S")) %>%
+  select(-parC_result)
+
+# Identify results from ARIBA
+mut_parE <- mut_quant %>%
+  select(id, parE) %>%
+  mutate(entries = sapply(strsplit(.$parE, ","), FUN = function(x) {length(x)})) %>%
+  separate(parE, into = as.character(c(1:max(.$entries)))) %>%
+  select(-entries) %>%
+  gather(key, value, `1`,`2`) %>%
+  filter(is.na(value) == FALSE) %>%
+  select(-key) %>%
+  group_by(id) %>%
+  mutate(test = 1:n()) %>%
+  ungroup()
+
+# Run mutation identification analysis on Prokka sequences and
+# match to ARIBA results
+parE_results <- bind_rows(lapply(seq_along(parE[-1]),
+                                 function(i) mismatches(parE[i + 1],
+                                                        parE[1]))) %>%
+  #mutate(Pos = Pos + 22) %>%
+  mutate(mutation = paste0(Reference_AA, Pos, Sample_AA)) %>%
+  select(ID, mutation) %>%
+  mutate(ID = sub(".faa", "", ID)) %>%
+  dplyr::rename("ref" = ID,
+                "parE_prokka" = mutation) %>%
+  left_join(id_data, by = "ref") %>%
+  select(id, parE_prokka) %>%
+  mutate(parE_result = parE_prokka %>%
+           str_extract_all("\\d+") %>% 
+           map(as.integer) %>% 
+           map_lgl(~ any(.x >= 366L & .x <= 523L))) %>%
+  filter(parE_result == TRUE) %>%
+  group_by(id) %>%
+  mutate(test = 1:n()) %>%
+  ungroup() %>%
+  left_join(mut_parE, by = c("id","test")) %>%
+  select(-test) %>%
+  dplyr::rename("parE_ariba" = value) %>%
+  filter(id %not_in% c("2016-17-565-1-S",
+                       "2016-02-428-2-S",
+                       "2016-02-486-2-S",
+                       "2016-02-732-2-S",
+                       "2014-01-1741-1-S")) %>%
+  select(-parE_result)
+
+
+full_report <- gyrA_results %>%
+  left_join(parC_results, by = "id") %>%
+  left_join(parE_results, by = "id") %>%
+  group_by(id) %>%
+  summarise_all(funs(func_paste)) %>%
+  mutate(parC_ariba = ifelse(parC_prokka == "S80I" & 
+                               parC_ariba == "S58I", "S80I", parC_ariba))
+
+full_report
+
+```
+
+# Tables
+## Isolate data
+```{r}
+isolate_data_complete <- isolate_data %>%
+  left_join(no_of_reads, by = "id")
+
+isolate_data_complete
+```
+
+## List of genes of interest
+This table lists all the genes of interest in this study, some information about them, and their accession number(s).
+```{r}
+
+acquired_ref_names <- acquired_data$ref_name
+acquired_ref <- c()
+
+for (i in ac_genes) {
+  for (j in acquired_ref_names) {
+    if (grepl(i,j, ignore.case = T) == TRUE) {
+      acquired_ref <- c(acquired_ref, j)
+    }
+  }
+}
+
+acquired_ref <- unique(acquired_ref)
+
+acquired_ref_genes <- acquired_data %>%
+  mutate(test = duplicated(ref_name),
+         gene = case_when(grepl("qnra1", ref_name, ignore.case = T) == TRUE ~ "qnrA1",
+                          grepl("qnrb19", ref_name, ignore.case = T) == TRUE ~ "qnrB19",
+                          grepl("qnrb6", ref_name, ignore.case = T) == TRUE ~ "qnrB6",
+                          grepl("qnrb60", ref_name, ignore.case = T) == TRUE ~ "qnrB60",
+                          grepl("qnrs1", ref_name, ignore.case = T) == TRUE ~ "qnrS1",
+                          grepl("qnrs2", ref_name, ignore.case = T) == TRUE ~ "qnrS2",
+                          grepl("qnrs4", ref_name, ignore.case = T) == TRUE ~ "qnrs4",
+                          grepl("qnrs9", ref_name, ignore.case = T) == TRUE ~ "qnrS9",
+                          grepl("qep", ref_name, ignore.case = T) == TRUE ~ "qepA")) %>%
+  filter(test == FALSE,
+         ref_name %in% acquired_ref_names) %>%
+  select(ref_name, gene) %>%
+  mutate(compl = complete.cases(.)) %>%
+  filter(compl == TRUE) %>%
+  mutate(ref_name2 = sub(".+_(.*?)", "\\1", ref_name)) %>%
+  group_by(gene) %>%
+  summarise_all(funs(func_paste)) %>%
+  select(gene, ref_name2) %>%
+  dplyr::rename("Accession number(s)" = ref_name2,
+         "Gene" = gene) %>%
+  mutate(Description = "Quinolone resistance protein, plasmid mediated, decreases susceptibility of quinolones",
+         Type = "Acquired")
+  
+df_ref_names <- mut_data$cluster
+ref_names <- c()
+
+for (i in mut_genes) {
+  for (j in df_ref_names) {
+    if (grepl(i,j, ignore.case = T) == TRUE) {
+      ref_names <- c(ref_names, j)
+    }
+  }
+}
+
+ref_names <- unique(ref_names)
+
+intrinsic_ref_genes <- mut_data %>%
+  mutate(test = duplicated(cluster),
+         gene = case_when(grepl("gyra", cluster, ignore.case = T) == TRUE ~ "gyrA",
+                          grepl("gyrb", cluster, ignore.case = T) == TRUE ~ "gyrB",
+                          grepl("parc", cluster, ignore.case = T) == TRUE ~ "parC",
+                          grepl("pare", cluster, ignore.case = T) == TRUE ~ "parE",
+                          grepl("soxR", cluster, ignore.case = T) == TRUE ~ "soxR",
+                          grepl("marR", cluster, ignore.case = T) == TRUE ~ "marR",
+                          grepl("mara", cluster, ignore.case = T) == TRUE ~ "marA",
+                          grepl("tolc", cluster, ignore.case = T) == TRUE ~ "tolC",
+                          grepl("acrr", ref_name, ignore.case = T) == TRUE ~ "acrR",
+                          grepl("acrb", ref_name, ignore.case = T) == TRUE ~ "acrB",
+                          grepl("mdfa", ref_name, ignore.case = T) == TRUE ~ "mdfA",
+                          grepl("rpob", ref_name, ignore.case = T) == TRUE ~ "rpoB")) %>%
+  filter(test == FALSE,
+         cluster %in% ref_names) %>%
+  select(ref_name, gene, free_text) %>%
+  mutate(ref_name2 = sub("^.*?_([A-Z]+[0-9_.]*[0-9]).*", "\\1", ref_name)) %>%
+  select(-ref_name) %>%
+  group_by(gene) %>%
+  summarise_all(funs(func_paste)) %>%
+  select(gene, ref_name2) %>%
+  dplyr::rename("Accession number(s)" = ref_name2,
+         "Gene" = gene) %>%
+  mutate(Description = case_when(Gene == "acrR" ~ "Multidrug efflux regulator, represses the transcription of acrB.",
+                                 Gene == "acrB" ~ "Gene that codes for the AcrB efflux pump, part of the AcrAB-TolC efflux system",
+                                 Gene == "gyrA" ~ "DNA gyrase subunit A, regulates DNA topoplogy. Target for quinolones.",
+                                 Gene == "gyrB" ~ "DNA gyrase subunit B, regulates DNA topoplogy. Target for quinolones.",
+                                 Gene == "marR" ~ "Repressor of the marRAB operon, involved with the activation of resistance- and oxidative stress genes.",
+                                 Gene == "marA" ~ "Transcriptional activator og genes involved in the MAR phenotype.",
+                                 Gene == "parC" ~ "Topoisomerase IV subunit C, regulates DNA topology. Target for quinolones.",
+                                 Gene == "parE" ~ "Topoisomerase IV subunit E, regulates DNA topology. Target for quinolones.",
+                                 Gene == "soxR" ~ "Transcriptional activator of the superoxide response regulon.",
+                                 Gene == "tolC" ~ "Part of the major AcrAB-TolC multidrug efflux pump.",
+                                 Gene == "mdfA" ~ "Chromosomal efflux pump.",
+                                 Gene == "rpoB" ~ "Beta-subunit of RNA polymerase, mutations lead to increased expression of the ydhE-pump"),
+         Type = "Intrinsic gene")
+                
+ref_genes <- rbind(intrinsic_ref_genes, acquired_ref_genes)
+
+ref_genes
+
+```
+
+## Isolates per species
+```{r}
+per_species <- isolate_data %>%
+  group_by(species) %>%
+  dplyr::count()
+
+per_species
+```
+
+## Sequence types in total
+```{r}
+tot_mlst <- mlst_data[,c("id","ST")] %>%
+  group_by(ST) %>%
+  dplyr::count() %>%
+  arrange(desc(n))
+
+print(paste0("Total amount of different sequence types: ", nrow(tot_mlst)))
+
+tot_mlst
+```
+
+## Sequence types per animal species
+```{r}
+mlst_data[,c("id","ST")] %>%
+  left_join(isolate_data[,c("id","species")], by = "id") %>%
+  group_by(ST, species) %>%
+  dplyr::count() %>%
+  arrange(desc(n))
+```
+
+## Number of sequence types per animal species
+```{r}
+mlst_data[,c("id","ST")] %>%
+  left_join(isolate_data[,c("id","species")], by = "id") %>%
+  group_by(species) %>%
+  mutate(n = length(unique(ST))) %>%
+  select(species,n) %>%
+  summarise_all(funs(func_paste))
+```
+
+## Percent isolates with PMQR
+```{r}
+acquired_report %>%
+  select(-id) %>%
+  mutate_all(funs(as.numeric(.))) %>%
+  mutate(total = rowSums(.),
+         result = if_else(total != 0, 1, 0)) %>%
+  group_by(result) %>%
+  dplyr::count() %>%
+  ungroup() %>%
+  mutate(result = if_else(result == 0, "Absent", "Present")) %>%
+  spread(result, n) %>%
+  mutate(Total = Present + Absent,
+         Percent = round(Present/Total * 100,1))
+```
+
+## Percent isolates with specific PMQR genes
+```{r}
+acquired_report %>%
+  select(-id) %>%
+  t() %>%
+  as.data.frame(.) %>%
+  mutate(Gene = rownames(.)) %>%
+  mutate_at(vars(-Gene),
+            funs(as.numeric(as.character(.)))) %>%
+  mutate(Present = rowSums(.[,-281])) %>%
+  select(c(Gene, Present)) %>%
+  rowwise() %>%
+  mutate(Total = 280,
+         Percent = round(Present/Total * 100,1))
+```
+
+## Percent isolates with mutations in QRDR
+```{r}
+mut_report %>%
+  select(gyrA, gyrB, parC, parE) %>%
+  group_by_all() %>%
+  dplyr::count() %>%
+  ungroup() %>%
+  mutate_at(vars(c(gyrA, gyrB, parC, parE)),
+            .funs = funs(as.numeric)) %>%
+  mutate(type = ifelse(rowSums(.[,1:4]) == 0, 1, 0)) %>%
+  select(n, type) %>%
+  group_by(type) %>%
+  summarise_all(funs(sum)) %>%
+  mutate(type = ifelse(type == 0, "Present", "Absent")) %>%
+  spread(type, n) %>%
+  mutate(Total = Present + Absent,
+         Percent = round(Present/Total * 100,1)) %>%
+  select(-Total)
+```
+
+## Specific mutations in QRDR
+```{r}
+suppressWarnings(clean_mut_data %>%
+  mutate(ref_ctg_change = ifelse(ref_ctg_change == ".", "", ref_ctg_change),
+         ref_nt = ifelse(ref_nt == ".", "", ref_nt),
+         ctg_nt = ifelse(ctg_nt == ".", "", ctg_nt),
+         ref_ctg_nt_change = paste(ref_nt, ctg_nt, sep = "-"),
+         mutation = paste(ref_ctg_change, ref_ctg_nt_change, sep = "/"),
+         mutation = ifelse(mutation == "/-", "0", mutation)) %>%
+  select(ref, gene_names, flag, mutation) %>%
+  filter(flag %in% flag_selection,
+         gene_names %in% c("gyrA","gyrB","parC","parE")) %>%
+  mutate(id = 1:n()) %>%
+  spread(gene_names, mutation) %>%
+  group_by(ref) %>%
+  summarise_all(funs(func_paste2)) %>%
+  select(-c(id, flag)) %>%
+  gather(gene, mut, -ref) %>%
+  mutate(mut = ifelse(mut == "" | mut == "." | is.na(mut) == TRUE, 0, mut),
+         result = ifelse(mut != 0, 1, 0),
+         result = as.integer(result),
+         type = "mut") %>%
+  separate(mut, into = paste("v", 1:12, sep = "_"), sep = ",") %>%
+  gather(mut, value, paste("v", 1:12, sep = "_")) %>%
+  separate(value, into = c("aa_change","nt_change"), sep = "/") %>%
+  select(-mut) %>%
+  dplyr::rename("mut" = aa_change) %>%
+  filter(is.na(nt_change) == FALSE) %>%
+  fix_gyr_par_results(.) %>%
+  filter(result_total == 1) %>%
+  group_by(gene, mut, nt_change) %>%
+  dplyr::count() %>%
+  separate(nt_change, into = c("Reference nt", "Contig nt"), sep = "-") %>%
+  rowwise() %>%
+  mutate(Total = 280,
+         Percent = round(n/Total * 100,1)) %>%
+  dplyr::rename("Mutation" = mut))
+```
+
+## Mutation combinations in QRDR
+```{r}
+mut_quant %>%
+  group_by(gyrA, gyrB, parC, parE) %>%
+  dplyr::count() %>%
+  rowwise() %>%
+  mutate(Total = 280,
+         Percent = round(n/Total * 100,1))
+```
+
+
+# Figures
+## Resistance mechanisms per sequence type
+```{r}
+genes <- c(names(mut_report), names(acquired_report), "qnr")
+genes <- genes[!genes %in% c("id","nt_change","qnrA1","qnrB19","qnrB6","qnrB60","qnrS1","qnrS2","qnrS4")]
+
+no_of_mlst <- mlst_data[,c("id","ST")] %>%
+  left_join(isolate_data[,c("id","species")], by = "id") %>%
+  group_by(ST, species) %>%
+  dplyr::count() %>%
+  group_by(ST) %>%
+  mutate(group_n = sum(n)) %>%
+  filter(group_n > 4)
+
+
+mlst_mechanisms_report <- mut_report %>%
+  left_join(acquired_report, by = "id") %>%
+  mutate_at(vars(qnrA1,qnrB19,qnrB6,qnrB60,qnrS1,qnrS2,qnrS4),
+            funs(as.numeric(.))) %>%
+  mutate(qnr = ifelse(rowSums(.[,12:18]) == 0, 0, 1)) %>%
+  select(-c(qnrA1,qnrB19,qnrB6,qnrB60,qnrS1,qnrS2,qnrS4,nt_change)) %>%
+  gather(gene, value, -id) %>%
+  mutate(present = ifelse(value == 1, gene, NA),
+         ref = 1:n()) %>%
+  spread(gene, value) %>%
+  group_by(id) %>%
+  summarise_all(funs(func_paste)) %>%
+  left_join(mlst_data[c("id","ST")], by = "id") %>%
+  select(-c(ref, id)) %>%
+  ungroup() %>%
+  mutate_at(vars(-present, ST), .funs = as.numeric) %>%
+  mutate(none = ifelse(rowSums(.[,genes]) == 0, 1, 0),
+         present = ifelse(present == "", "None", present)) %>%
+  gather(gene, value, -c(present,ST)) %>%
+  mutate(gene = ifelse(value == 0 & gene != "None", NA, gene),
+         value = ifelse(gene == "None" & value == 0, NA, value)) %>%
+  na.omit() %>%
+  group_by(ST, gene, value) %>%
+  dplyr::count() %>%
+  filter(ST %in% no_of_mlst$ST)
+
+palette <- c("Broiler" = "#4575b4",
+             "Pig" = "#74add1",
+             "Red fox" = "#f46d43",
+             "Wild bird" = "#fdae61")
+
+p1 <- ggplot(mlst_mechanisms_report, aes(factor(ST), gene, size = n))+
+  geom_point()+
+  guides(size = FALSE)+
+  labs(x = "Sequence Types",
+       y = "Genes")+
+  scale_y_discrete(limits = c("gyrA","parC","parE","marA","marR","rpoB","qnr")) +
+  theme(axis.text.x = element_text(size = 10),
+        axis.text.y = element_text(size = 10),
+        axis.ticks.x = element_blank())
+
+p2 <- ggplot(no_of_mlst, aes(factor(ST), n, fill = species))+
+  geom_col(color = "black")+
+  scale_fill_manual(values = palette)+
+  guides(fill = FALSE)+
+  theme(axis.title.x = element_blank(),
+        axis.ticks.x = element_blank(),
+        axis.text.x = element_blank())
+
+plot_grid(p2, p1, nrow = 2, align = "v")
+
+```
+
+
+## Percent resistance mechanisms in total
+```{r}
+total_mechanisms <- mut_report %>%
+  select(-nt_change) %>%
+  left_join(acquired_report, by = "id") %>%
+  mutate_at(vars(qnrA1,qnrB19,qnrB6,qnrB60,qnrS1,qnrS2,qnrS4),
+            funs(as.numeric(.))) %>%
+  mutate(qnr = ifelse(rowSums(.[,11:17]) == 0, 0, 1)) %>%
+  select(-c(qnrA1,qnrB19,qnrB6,qnrB60,qnrS1,qnrS2,qnrS4)) %>%
+  gather(gene, result, -id) %>%
+  group_by(gene, result) %>%
+  dplyr::count() %>%
+  ungroup() %>%
+  mutate(result = ifelse(result == 1, "Present", "Absent")) %>%
+  spread(result, n, fill = 0) %>%
+  rowwise() %>%
+  mutate(Total = Present + Absent,
+         Percent = round((Present/Total)*100, 1),
+         type = ifelse(gene %in% c("qnr","qepA4"), "Acquired","Intrinsic"))
+
+palette2 <- c("Acquired" = "#8dd3c7",
+              "Intrinsic" = "#80b1d3")
+
+ggplot(total_mechanisms, aes(reorder(gene, -Percent), Percent, fill = type)) +
+  geom_col(color = "black") +
+  scale_fill_manual(values = palette2) +
+  labs(x = "Genes",
+       y = "Percent (%) Isolates",
+       fill = NULL)
+
+```
+
+## Percent QREC isolates with mutations in intrinsic genes
+```{r}
+gene_names <- names(mut_report)
+
+gene_names <- gene_names[-c(1,2)]
+
+palette <- c("Broiler" = "#4575b4",
+             "Pig" = "#74add1",
+             "Red fox" = "#f46d43",
+             "Wild bird" = "#fdae61")
+
+mut_report %>%
+    left_join(isolate_data, by = "id") %>%
+    gather(key, value, gene_names) %>%
+    group_by(key, value, species) %>%
+    dplyr::count() %>%
+    ungroup() %>%
+    mutate(value = if_else(value == 1, "Present", "Absent")) %>%
+    spread(value, n, fill = 0) %>%
+    rowwise() %>%
+    mutate(
+      Total = Present + Absent,
+      Percent = round(Present / Total * 100, 1)
+    ) %>%
+    mutate(species = factor(species,
+                            levels = c("Broiler","Pig","Wild bird","Red fox"))) %>%
+    ggplot(aes(key, Percent, fill = species)) +
+    geom_col(color = "black",
+             position = position_dodge(1)) +
+    scale_fill_manual(values = palette) +
+    scale_x_discrete(limits = c("gyrA","gyrB","parC","parE","marA","marR","acrB","rpoB")) +
+    labs(y = "Percent (%) of isolates") +
+    guides(fill = FALSE) +
+    theme_classic() +
+    theme(
+      axis.text.x = element_text(
+        angle = 90,
+        size = 12,
+        hjust = 1,
+        vjust = 0.4
+      ),
+      axis.title.x = element_blank(),
+      axis.text.y = element_text(size = 12),
+      axis.title.y = element_text(size = 14),
+      strip.text = element_text(size = 12)
+    ) +
+    facet_wrap(~ species)
+```
+
+## Percent QREC isolates with Qnr genes per species
+```{r}
+qnr_genes <- c("qnrA1","qnrB19","qnrB6","qnrB60","qnrS1","qnrS2","qnrS4")
+
+acquired_report %>%
+    left_join(isolate_data, by = "id") %>%
+    gather(key, value, qnr_genes) %>%
+    group_by(key, value, species) %>%
+    dplyr::count() %>%
+    ungroup() %>%
+    mutate(value = if_else(value == 1, "Present", "Absent")) %>%
+    spread(value, n, fill = 0) %>%
+    rowwise() %>%
+    mutate(
+      Total = Present + Absent,
+      Percent = round(Present / Total * 100, 1)
+    ) %>%
+    ggplot(aes(key, Percent, fill = species)) +
+    geom_col(color = "black",
+             position = position_dodge(0.9)) +
+    scale_fill_manual(values = palette) +
+    labs(y = "Percent (%) of isolates",
+         fill = NULL) +
+    theme_classic() +
+    theme(
+      axis.text = element_text(size = 12),
+      axis.title.y = element_text(size = 14),
+      legend.text = element_text(size = 12),
+      axis.title.x = element_blank(),
+      legend.justification = c(0, 1),
+      legend.position = c(0.82, 0.97)
+    )
+```
+
+
+## cgMLST-trees
+```{r, fig.width=24, fig.height=22, message = FALSE, warning = FALSE}
+
+palette3 <- c("1-A" = "#8dd3c7",
+              "1-I" = "#80b1d3",
+              "0" = "grey95")
+
+qr_genes <- mut_report[c("id","gyrA","parC","parE","rpoB","marA","marR")] %>%
+  mutate_at(vars(-id),
+            funs(ifelse(. == "1", "1-I", "0")))
+  
+ac_genes <- acquired_report %>%
+  mutate_at(vars(-id),
+            funs(as.numeric)) %>%
+  mutate(qnr = ifelse(rowSums(.[,3:9]) != 0 , 1, 0)) %>%
+  select(id, qepA4, qnr) %>%
+  mutate_at(vars(-id),
+            funs(ifelse(. == "1", "1-A", "0")))
+
+cgMLSTdata <- read.table("../data/cgMLST.txt",
+                         sep = "\t",
+                         row.names=1,
+                         colClasses = "factor",
+                         header = T)
+
+broiler_iso <- isolate_data[c("id", "species")] %>%
+  filter(species == "Broiler") %>%
+  filter(id %not_in% c("2016-17-565-1-S",
+                       "2016-02-428-2-S",
+                       "2016-02-486-2-S",
+                       "2016-02-732-2-S",
+                       "2014-01-1741-1-S"))
+
+pig_iso <- isolate_data[c("id", "species")] %>%
+  filter(species == "Pig") %>%
+  filter(id %not_in% c("2016-17-565-1-S",
+                       "2016-02-428-2-S",
+                       "2016-02-486-2-S",
+                       "2016-02-732-2-S",
+                       "2014-01-1741-1-S"))
+
+fox_iso <- isolate_data[c("id", "species")] %>%
+  filter(species == "Red fox") %>%
+  filter(id %not_in% c("2016-17-565-1-S",
+                       "2016-02-428-2-S",
+                       "2016-02-486-2-S",
+                       "2016-02-732-2-S",
+                       "2014-01-1741-1-S"))
+
+bird_iso <- isolate_data[c("id", "species")] %>%
+  filter(species == "Wild bird") %>%
+  filter(id %not_in% c("2016-17-565-1-S",
+                       "2016-02-428-2-S",
+                       "2016-02-486-2-S",
+                       "2016-02-732-2-S",
+                       "2014-01-1741-1-S"))
+
+data_broiler <- cgMLSTdata %>%
+  rownames_to_column("id") %>%
+  filter(id %in% broiler_iso$id) %>%
+  dplyr::rename("Genome" = `id`) %>%
+  select(Genome, everything()) %>%
+  left_join(mlst_data[c("id","ST")], by = c("Genome" = "id"))
+
+data_pig <- cgMLSTdata %>%
+  rownames_to_column("id") %>%
+  filter(id %in% pig_iso$id) %>%
+  dplyr::rename("Genome" = `id`) %>%
+  select(Genome, everything()) %>%
+  left_join(mlst_data[c("id","ST")], by = c("Genome" = "id"))
+
+data_fox <- cgMLSTdata %>%
+  rownames_to_column("id") %>%
+  filter(id %in% fox_iso$id) %>%
+  dplyr::rename("Genome" = `id`) %>%
+  select(Genome, everything()) %>%
+  left_join(mlst_data[c("id","ST")], by = c("Genome" = "id"))
+
+data_bird <- cgMLSTdata %>%
+  rownames_to_column("id") %>%
+  filter(id %in% bird_iso$id) %>%
+  dplyr::rename("Genome" = `id`) %>%
+  select(Genome, everything()) %>%
+  left_join(mlst_data[c("id","ST")], by = c("Genome" = "id"))
+
+cgMLSTdata_broiler <- read.table("../data/cgMLST_broiler.txt",
+                                 sep = "\t",
+                                 row.names=1,
+                                 colClasses = "factor",
+                                 header = T)
+
+cgMLST_tree_broiler <- as.phylo(hclust(daisy(cgMLSTdata_broiler,
+                                             metric="gower")))
+
+cgMLSTdata_pig <- read.table("../data/cgMLST_pig.txt",
+                             sep = "\t",
+                             row.names=1,
+                             colClasses = "factor",
+                             header = T)
+
+cgMLST_tree_pig <- as.phylo(hclust(daisy(cgMLSTdata_pig,
+                                         metric="gower")))
+
+cgMLSTdata_fox <- read.table("../data/cgMLST_fox.txt", 
+                             sep = "\t", 
+                             row.names=1, 
+                             colClasses = "factor", 
+                             header = T)
+
+cgMLST_tree_fox <- as.phylo(hclust(daisy(cgMLSTdata_fox,
+                                         metric="gower")))
+
+cgMLSTdata_bird <- read.table("../data/cgMLST_bird.txt", 
+                              sep = "\t", 
+                              row.names=1, 
+                              colClasses = "factor", 
+                              header = T)
+
+cgMLST_tree_bird <- as.phylo(hclust(daisy(cgMLSTdata_bird,
+                                          metric="gower")))
+
+broiler_tree <- ggtree(cgMLST_tree_broiler,
+                       layout = "circular",
+                       color = "#808080",
+                       size = 1) %<+% data_broiler +
+  geom_tippoint(size = 4,
+                color = "#4575b4")+
+  ggtitle("A")+
+  theme(plot.title = element_text(size = 40, face = "bold"),
+        plot.margin=unit(c(0,0,0,0), "cm"))
+
+pig_tree <- ggtree(cgMLST_tree_pig,
+                   layout = "circular",
+                   color = "#808080",
+                   size = 1) %<+% data_pig +
+  geom_tippoint(size = 4,
+                color = "#74add1")+
+  ggtitle("B")+
+  theme(plot.title = element_text(size = 40, face = "bold"),
+        plot.margin=unit(c(0,0,0,0), "cm"))
+
+fox_tree <- ggtree(cgMLST_tree_fox,
+                   layout = "circular",
+                   color = "#808080",
+                   size = 1) %<+% data_fox +
+  geom_tippoint(size = 4,
+                color = "#f46d43")+
+  ggtitle("C")+
+  theme(plot.title = element_text(size = 40, face = "bold"),
+        plot.margin=unit(c(0,0,0,0), "cm"))
+
+bird_tree <- ggtree(cgMLST_tree_bird,
+                    layout = "circular",
+                    color = "#808080",
+                    size = 1) %<+% data_bird +
+  geom_tippoint(size = 4,
+                color = "#fdae61")+
+  ggtitle("D")+
+  theme(plot.title = element_text(size = 40, face = "bold"),
+        plot.margin=unit(c(0,0,0,0), "cm"))
+
+total_data <- qr_genes %>%
+  left_join(ac_genes, by = "id")
+
+broiler_data <- total_data %>%
+  filter(id %in% broiler_iso$id) %>%
+  column_to_rownames("id")
+
+pig_data <- total_data %>%
+  filter(id %in% pig_iso$id) %>%
+  column_to_rownames("id")
+
+fox_data <- total_data %>%
+  filter(id %in% fox_iso$id) %>%
+  column_to_rownames("id")
+
+bird_data <- total_data %>%
+  filter(id %in% bird_iso$id) %>%
+  column_to_rownames("id")
+
+
+fan_tree_broiler <- open_tree(broiler_tree, 10)
+
+rotated_fan_tree_broiler <- rotate_tree(fan_tree_broiler, 93)
+
+broiler_annotated_tree <- gheatmap(rotated_fan_tree_broiler,
+                                   broiler_data,
+                                   offset = 0.01,
+                                   width = 0.5,
+                                   colnames_offset_y = 0.7,
+                                   colnames_position = "top",
+                                   font.size = 7) +
+  scale_fill_manual(values = palette3) +
+  guides(fill = FALSE)
+
+fan_tree_pig <- open_tree(pig_tree, 10)
+
+rotated_fan_tree_pig <- rotate_tree(fan_tree_pig, 92)
+
+pig_annotated_tree <- gheatmap(rotated_fan_tree_pig, 
+                               pig_data,
+                               offset = 0.01, 
+                               width = 0.5, 
+                               colnames_offset_y = 0.55, 
+                               colnames_position = "top", 
+                               font.size = 7) +
+  scale_fill_manual(values = palette3) +
+  guides(fill = FALSE)
+
+
+fan_tree_fox <- open_tree(fox_tree, 10)
+
+rotated_fan_tree_fox <- rotate_tree(fan_tree_fox, 92)
+
+fox_annotated_tree <- gheatmap(rotated_fan_tree_fox, 
+                               fox_data, 
+                               offset = 0.01, 
+                               width = 0.5, 
+                               colnames_offset_y = 0.2, 
+                               colnames_position = "top", 
+                               font.size = 7) +
+  scale_fill_manual(values = palette3) +
+  guides(fill = FALSE)
+
+
+fan_tree_bird <- open_tree(bird_tree, 10)
+
+rotated_fan_tree_bird <- rotate_tree(fan_tree_bird, 93)
+
+bird_annotated_tree <- gheatmap(rotated_fan_tree_bird, 
+                                bird_data, 
+                                offset = 0.01, 
+                                width = 0.5, 
+                                colnames_offset_y = 0.4, 
+                                colnames_position = "top", 
+                                font.size = 7) +
+  scale_fill_manual(values = palette3) +
+  guides(fill = FALSE)
+
+total_plot <- cowplot::plot_grid(broiler_annotated_tree, 
+                                 pig_annotated_tree, 
+                                 fox_annotated_tree, 
+                                 bird_annotated_tree, 
+                                 ncol = 2, 
+                                 align = "h")
+total_plot
+
+```
+
+
+## Another color scheme
+```{r,fig.width=24, fig.height=22, message = FALSE, warning = FALSE}
+
+qr_genes_alt <- mut_report[c("id","gyrA","parC","parE","rpoB","marA","marR")] %>%
+  mutate(gyrA = ifelse(gyrA == 1, "gyrA_1", gyrA),
+         parC = ifelse(parC == 1, "parC_1", parC),
+         parE = ifelse(parE == 1, "parE_1", parE),
+         rpoB = ifelse(rpoB == 1, "rpoB_1", rpoB),
+         marA = ifelse(marA == 1, "marA_1", marA),
+         marR = ifelse(marR == 1, "marR_1", marR))
+  
+ac_genes_alt <- acquired_report %>%
+  mutate_at(vars(-id),
+            funs(as.numeric)) %>%
+  mutate(qnr = ifelse(rowSums(.[,3:9]) != 0 , 1, 0)) %>%
+  select(id, qepA4, qnr) %>%
+  mutate(qnr = ifelse(qnr == 1, "qnr_1", qnr),
+         qepA4 = ifelse(qepA4 == 1, "qepA4_1", qepA4))
+
+total_data_alt <- qr_genes_alt %>%
+  left_join(ac_genes_alt, by = "id")
+
+palette_heatmap <- c("gyrA_1" = "#8dd3c7",
+                     "parC_1" = "#ffffb3",
+                     "parE_1" = "#bebada",
+                     "rpoB_1" = "#fb8072",
+                     "marA_1" = "#80b1d3",
+                     "marR_1" = "#fdb462",
+                     "qepA4_1" = "#b3de69",
+                     "qnr_1" = "#fccde5",
+                     "0" = "grey95")
+
+broiler_tree <- ggtree(cgMLST_tree_broiler,
+                       layout = "circular",
+                       color = "#4575b4",
+                       size = 1) %<+% data_broiler +
+  geom_tippoint(size = 2,
+                color = "black")+
+  ggtitle("A")+
+  theme(plot.title = element_text(size = 20, face = "bold"))
+
+
+broiler_data <- total_data_alt %>%
+  filter(id %in% broiler_iso$id) %>%
+  column_to_rownames("id")
+
+
+broiler_annotated_tree2 <- gheatmap(broiler_tree,
+                                   broiler_data,
+                                   offset = 0.01,
+                                   width = 0.3,
+                                   colnames = FALSE)+
+  scale_fill_manual(values = palette_heatmap)+
+  guides(fill = FALSE)
+
+  
+
+pig_tree <- ggtree(cgMLST_tree_pig,
+                       layout = "circular",
+                       color = "#74add1",
+                       size = 1) %<+% data_pig +
+  geom_tippoint(size = 2,
+                color = "black")+
+  ggtitle("B")+
+  theme(plot.title = element_text(size = 20, face = "bold"))
+
+
+pig_data <- total_data_alt %>%
+  filter(id %in% pig_iso$id) %>%
+  column_to_rownames("id")
+
+
+pig_annotated_tree2 <- gheatmap(pig_tree,
+                                   pig_data,
+                                   offset = 0.01,
+                                   width = 0.3,
+                                   colnames = FALSE)+
+  scale_fill_manual(values = palette_heatmap)+
+  guides(fill = FALSE)
+
+
+fox_tree <- ggtree(cgMLST_tree_fox,
+                       layout = "circular",
+                       color = "#f46d43",
+                       size = 1) %<+% data_fox +
+  geom_tippoint(size = 2,
+                color = "black")+
+  ggtitle("C")+
+  theme(plot.title = element_text(size = 20, face = "bold"))
+
+
+fox_data <- total_data_alt %>%
+  filter(id %in% fox_iso$id) %>%
+  column_to_rownames("id")
+
+
+fox_annotated_tree2 <- gheatmap(fox_tree,
+                                   fox_data,
+                                   offset = 0.01,
+                                   width = 0.3,
+                                   colnames = FALSE)+
+  scale_fill_manual(values = palette_heatmap)+
+  guides(fill = FALSE)
+
+
+bird_tree <- ggtree(cgMLST_tree_bird,
+                       layout = "circular",
+                       color = "#fdae61",
+                       size = 1) %<+% data_bird +
+  geom_tippoint(size = 2,
+                color = "black")+
+  ggtitle("D")+
+  theme(plot.title = element_text(size = 20, face = "bold"))
+
+
+bird_data <- total_data_alt %>%
+  filter(id %in% bird_iso$id) %>%
+  column_to_rownames("id")
+
+
+bird_annotated_tree2 <- gheatmap(bird_tree,
+                                   bird_data,
+                                   offset = 0.01,
+                                   width = 0.3,
+                                   colnames = FALSE)+
+  scale_fill_manual(values = palette_heatmap)+
+  guides(fill = FALSE)
+
+
+total_plot2 <- cowplot::plot_grid(broiler_annotated_tree2, 
+                                 pig_annotated_tree2, 
+                                 fox_annotated_tree2, 
+                                 bird_annotated_tree2, 
+                                 ncol = 2, 
+                                 align = "h")
+total_plot2
+```
+
