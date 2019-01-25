@@ -103,7 +103,9 @@ The column "Additional resistances" represents the amount of other anitmicroial 
 res_groups_n <- total_df %>%
   group_by(CIP, NAL, antres) %>%
   count() %>%
-  rename("Additional Resistances" = antres)
+  rename("Additional Resistances" = antres) %>%
+  ungroup() %>%
+  mutate(Group = 1:n())
 pander(res_groups_n)
 ```
 
