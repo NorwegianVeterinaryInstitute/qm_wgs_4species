@@ -1,0 +1,813 @@
+---
+title: "Clustering analysis and statistics"
+author: "Håkon Kaspersen"
+date: '`r format(Sys.time(), "%d.%m.%Y")`'
+always_allow_html: yes
+output:
+    html_document:
+      code_folding: hide
+      df_print: paged
+      highlight: kate
+      number_sections: yes
+      theme: flatly
+      toc: yes
+      toc_depth: 3
+      toc_float:
+        collapsed: yes
+    pdf_document:
+      toc: yes
+      toc_depth: '3'
+---
+
+```{r libraries, include = FALSE}
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(ggtree)
+library(cluster)
+library(Biostrings)
+library(ape)
+library(tibble)
+library(cowplot)
+```
+
+# cgMLST Schema and quality control
+```{r import data}
+# Vector of excluded samples
+ex_samples <- c(
+  "2016-17-565-1-S",
+  "2016-02-428-2-S",
+  "2016-02-486-2-S",
+  "2016-02-732-2-S",
+  "2014-01-1741-1-S"
+  )
+
+# Collapses data frame to unique lines while ignoring NA's
+func_paste <- function(x) paste(unique(x[!is.na(x)]), collapse = ", ")
+
+"%not_in%" <- Negate("%in%")
+
+
+# Isolate data
+id_data <- read.table("../data/id.txt",
+                      sep = "\t",
+                      header = TRUE,
+                      stringsAsFactors = F)
+
+isolate_data <- read.table("../data/isolate_data.txt",
+                           sep = "\t",
+                           header = T,
+                           stringsAsFactors = F) %>%
+  filter(id %not_in% ex_samples)
+
+
+# cgMLST data
+cgmlst_stats <- read.table("../data/chewbbaca/complete_results/mdata_stats.tsv",
+                         sep = "\t",
+                         header = TRUE,
+                         stringsAsFactors = FALSE)
+
+cgMLST_allele_data <- read.table("../data/chewbbaca/complete_results/cgMLST.tsv",
+                              sep = "\t",
+                              header = TRUE,
+                              stringsAsFactors = FALSE) %>%
+  mutate(FILE = sub("_pilon_spades.fasta", "", FILE)) %>%
+  dplyr::rename("ref" = FILE) %>%
+  left_join(id_data, by = "ref") %>%
+  select(id, everything(), -ref) %>%
+  filter(id %not_in% ex_samples)
+
+```
+
+```{r Number of missing loci}
+boxplot(cgmlst_stats$number.of.missing.data,
+        ylab = "Number of missing loci")
+```
+
+# Total dendrogram of all isolates
+```{r, fig.height=20, fig.width=20, message=FALSE, warning=FALSE}
+cgMLST_data <- read.table("../data/chewbbaca/complete_results/clean_cgMLST_data.txt",
+                   sep = "\t",
+                   header = TRUE,
+                   colClasses = "factor")
+
+total_tree <- as.phylo(hclust(daisy(cgMLST_data, metric = "gower"), method = "average"))
+
+
+tree_metadata <- read.table("../data/chewbbaca/complete_results/tree_metadata.txt",
+                            sep = "\t",
+                            header = TRUE)
+
+tree_heatmap_data <- read.table("../data/chewbbaca/complete_results/tree_heatmap_data.txt",
+                            sep = "\t",
+                            header = TRUE)
+
+palette <- c("Broiler" = "#4575b4",
+             "Pig" = "#74add1",
+             "Red fox" = "#f46d43",
+             "Wild bird" = "#fdae61")
+
+palette2 <- c("1-A" = "#fc8d59",
+              "1-I" = "#80b1d3",
+              "0" = "grey95")
+
+total_tree_annotated <- ggtree(total_tree,
+                               layout = "circular",
+                               color = "#808080",
+                               size = 0.5) %<+% tree_metadata +
+                               geom_tippoint(aes(color = species),
+                               size = 3) +
+                               geom_tiplab2(aes(label = ST),
+                               offset = 0.01,
+                               size = 4) +
+  scale_color_manual(values = palette)
+
+total_tree_opened <- rotate_tree(open_tree(total_tree_annotated, 8), 93)
+
+gheatmap(total_tree_opened,
+         tree_heatmap_data,
+         offset = 0.04,
+         width = 0.3,
+         colnames_offset_y = 2.5,
+         colnames_position = "top",
+         font.size = 5) +
+  scale_fill_manual(values = palette2,
+                    labels = c("Gene/Mutation absent",
+                               "Acquired gene present",
+                               "Intrinsic gene mutated")) +
+  theme(legend.position = c(0.9,0.9),
+        legend.text = element_text(size = 20))
+```
+
+```{r, fig.height=25, fig.width=25, message=FALSE, warning=FALSE}
+
+metadata_species <- read.table("../data/chewbbaca/complete_results/metadata_species_specific_trees.txt",
+                               sep = "\t",
+                               header = TRUE)
+
+palette3 <- c("0" = "grey95",
+              # gyrA
+              "S83L" = "#c6dbef",
+              "S83A" = "#9ecae1",
+              "D87N" = "#6baed6",
+              "D87H" = "#4292c6",
+              "D87Y" = "#2171b5",
+              "D87G" = "#08519c",
+              "S83L, D87N" = "#08306b",
+              # parC
+              "S80I" = "#a1d99b",
+              "S80R" = "#74c476",
+              "S57T" = "#41ab5d",
+              "A56T, S80I" = "#238b45",
+              "S80I, E84V" = "#005a32",
+              # parE
+              "D475E" = "#fdd0a2",
+              "D463N" = "#fdae6b",
+              "S458A" = "#fd8d3c",
+              "L416F" = "#f16913",
+              "H516Y" = "#d94801",
+              "L488M, A512T" = "#8c2d04",
+              # PMQR
+              "qnrA1" = "#762a83",
+              "qnrB19" = "#ef8a62",
+              "qnrS1" = "#a6dba0",
+              "qnrS2" = "#5aae61",
+              "qnrS4" = "#1b7837",
+              "qepA4" = "#80cdc1",
+              # num
+              "1" = "#440154FF",
+              "2" = "#471164FF",
+              "3" = "#481F70FF",
+              "4" = "#472D7BFF",
+              "5" = "#443A83FF",
+              "6" = "#404688FF",
+              "7" = "#3B528BFF",
+              "8" = "#365D8DFF",
+              "9" = "#31688EFF",
+              "10" = "#2C728EFF",
+              "11" = "#287C8EFF",
+              "12" = "#24868EFF",
+              "13" = "#21908CFF",
+              "14" = "#1F9A8AFF",
+              "15" = "#20A486FF",
+              "16" = "#27AD81FF",
+              "17" = "#35B779FF",
+              "18" = "#47C16EFF",
+              "19" = "#5DC863FF",
+              "20" = "#75D054FF",
+              "21" = "#8FD744FF",
+              "22" = "#AADC32FF",
+              "23" = "#C7E020FF",
+              "24" = "#E3E418FF",
+              "25" = "#FDE725FF")
+
+# Broiler tree
+broiler_cgMLST <- read.table("../data/chewbbaca/complete_results/broiler_cgmlst.txt",
+                   sep = "\t",
+                   header = TRUE,
+                   colClasses = "factor")
+
+broiler_tree <- as.phylo(hclust(daisy(broiler_cgMLST, metric = "gower"), method = "average"))
+
+broiler_tree_annotated <- ggtree(broiler_tree,
+                                 layout = "circular",
+                                 color = "#808080",
+                                 size = 0.5) %<+% tree_metadata +
+  geom_tippoint(color = "#4575b4",
+                size = 4) +
+  geom_tiplab2(aes(label = ST),
+               offset = 0.01,
+               size = 6)
+
+broiler_tree_opened <- rotate_tree(open_tree(broiler_tree_annotated, 10), 92.5)
+
+broiler_complete <- gheatmap(broiler_tree_opened,
+         metadata_species,
+         offset = 0.09,
+         width = 0.5,
+         colnames_offset_y = 0.75,
+         colnames_position = "top",
+         font.size = 5) +
+  scale_fill_manual(values = palette3) +
+  guides(fill = FALSE)
+
+# Pig tree
+pig_cgMLST <- read.table("../data/chewbbaca/complete_results/pig_cgmlst.txt",
+                   sep = "\t",
+                   header = TRUE,
+                   colClasses = "factor")
+
+pig_tree <- as.phylo(hclust(daisy(pig_cgMLST, metric = "gower"), method = "average"))
+
+pig_tree_annotated <- ggtree(pig_tree,
+                                 layout = "circular",
+                                 color = "#808080",
+                                 size = 0.5) %<+% tree_metadata +
+  geom_tippoint(color = "#74add1",
+                size = 4) +
+  geom_tiplab2(aes(label = ST),
+               offset = 0.01,
+               size = 5.5)
+
+pig_tree_opened <- rotate_tree(open_tree(pig_tree_annotated, 10), 92.5)
+
+pig_complete <- gheatmap(pig_tree_opened,
+         metadata_species,
+         offset = 0.09,
+         width = 0.5,
+         colnames_offset_y = 0.53,
+         colnames_position = "top",
+         font.size = 5) +
+  scale_fill_manual(values = palette3) +
+  guides(fill = FALSE)
+
+# Red fox tree
+fox_cgMLST <- read.table("../data/chewbbaca/complete_results/fox_cgmlst.txt",
+                   sep = "\t",
+                   header = TRUE,
+                   colClasses = "factor")
+
+fox_tree <- as.phylo(hclust(daisy(fox_cgMLST, metric = "gower"), method = "average"))
+
+fox_tree_annotated <- ggtree(fox_tree,
+                                 layout = "circular",
+                                 color = "#808080",
+                                 size = 0.5) %<+% tree_metadata +
+  geom_tippoint(color = "#f46d43",
+                size = 4) +
+  geom_tiplab2(aes(label = ST),
+               offset = 0.01,
+               size = 5.5)
+
+fox_tree_opened <- rotate_tree(open_tree(fox_tree_annotated, 10), 92)
+
+fox_complete <- gheatmap(fox_tree_opened,
+         metadata_species,
+         offset = 0.09,
+         width = 0.5,
+         colnames_offset_y = 0.17,
+         colnames_position = "top",
+         font.size = 5) +
+  scale_fill_manual(values = palette3) +
+  guides(fill = FALSE)
+
+# Wild bird tree
+bird_cgMLST <- read.table("../data/chewbbaca/complete_results/bird_cgmlst.txt",
+                   sep = "\t",
+                   header = TRUE,
+                   colClasses = "factor")
+
+bird_tree <- as.phylo(hclust(daisy(bird_cgMLST, metric = "gower"), method = "average"))
+
+bird_tree_annotated <- ggtree(bird_tree,
+                                 layout = "circular",
+                                 color = "#808080",
+                                 size = 0.5) %<+% tree_metadata +
+  geom_tippoint(color = "#f46d43",
+                size = 4) +
+  geom_tiplab2(aes(label = ST),
+               offset = 0.01,
+               size = 5.5)
+
+bird_tree_opened <- rotate_tree(open_tree(bird_tree_annotated, 10), 92.5)
+
+bird_complete <- gheatmap(bird_tree_opened,
+         metadata_species,
+         offset = 0.09,
+         width = 0.5,
+         colnames_offset_y = 0.38,
+         colnames_position = "top",
+         font.size = 5) +
+  scale_fill_manual(values = palette3) +
+  guides(fill = FALSE)
+
+# Total plot
+tot_plot <- plot_grid(broiler_complete,
+          pig_complete,
+          fox_complete,
+          bird_complete,
+          nrow = 2,
+          ncol = 2,
+          align = "h")
+tot_plot
+
+```
+
+```{r}
+# calculates distances from cgMLST data and returns
+# the lower triangular of the matrix, with (diag = FALSE)
+# or without (diag = TRUE) the diagonal
+lower_tri_dist_calc <- function(data, diag = TRUE, data_frame = FALSE) {
+  dist <- as.matrix(daisy(data, metric = "gower"))
+  if (diag == TRUE) {
+    dist[upper.tri(dist, diag = TRUE)] <- NA
+  } else {
+    dist[upper.tri(dist, diag = FALSE)] <- NA
+  }
+  dist_vec <- as.vector(as.matrix(dist))
+  dist_compl <- dist_vec[!is.na(dist_vec)]
+  
+  if (data_frame == TRUE) {
+    dist_compl <- as.data.frame(as.matrix(dist))
+  }
+  return(dist_compl)
+}
+
+broiler_dist <- lower_tri_dist_calc(broiler_cgMLST)
+pig_dist <- lower_tri_dist_calc(pig_cgMLST)
+fox_dist <- lower_tri_dist_calc(fox_cgMLST)
+bird_dist <- lower_tri_dist_calc(bird_cgMLST)
+
+
+# Distance plots
+par(mfrow = c(2,2))
+
+x1 <- hist(broiler_dist,
+     breaks = 20,
+     plot = FALSE)
+
+x1$density = x1$counts/sum(x1$counts)*100
+
+plot(x1,
+     freq = FALSE,
+     main = "Broiler distance frequency",
+     xlab = "Distance",
+     ylim = c(0, 50))
+
+
+x2 <- hist(pig_dist,
+     breaks = 20,
+     plot = FALSE)
+
+x2$density = x2$counts/sum(x2$counts)*100
+
+plot(x2,
+     freq = FALSE,
+     main = "Pig distance frequency",
+     xlab = "Distance",
+     ylim = c(0, 50))
+
+x3 <- hist(fox_dist,
+     breaks = 20,
+     plot = FALSE)
+
+x3$density = x3$counts/sum(x3$counts)*100
+
+plot(x3,
+     freq = FALSE,
+     main = "Red fox distance frequency",
+     xlab = "Distance",
+     ylim = c(0, 50))
+
+
+x4 <- hist(bird_dist,
+     breaks = 20,
+     plot = FALSE)
+
+x4$density = x4$counts/sum(x4$counts)*100
+
+plot(x4,
+     freq = FALSE,
+     main = "Wild bird distance frequency",
+     xlab = "Distance",
+     ylim = c(0, 50))
+
+
+```
+
+# Statistics
+```{r, warning=FALSE, message=FALSE}
+alleles <- cgMLST_allele_data %>%
+  left_join(isolate_data[,c("id","species")], by = "id") %>%
+  group_by(species) %>%
+  mutate(n = 1:n(),
+         new_id = case_when(species == "Broiler" ~ paste("BR", n, sep = "_"),
+                            species == "Pig" ~ paste("PI", n, sep = "_"),
+                            species == "Red fox" ~ paste("RF", n, sep = "_"),
+                            species == "Wild bird" ~ paste("WB", n, sep = "_"))) %>%
+  ungroup() %>%
+  select(new_id, everything(), -c(species, id)) %>%
+  mutate_all(funs(as.factor)) %>%
+  column_to_rownames("new_id")
+
+run_df <- lower_tri_dist_calc(alleles, data_frame = TRUE) %>%
+  rownames_to_column("id") %>%
+  gather(isolate1, value, -id) %>%
+  dplyr::rename("isolate2" = id) %>%
+  mutate(group1 = substr(isolate1, start = 1, stop = 2),
+         group2 = substr(isolate2, start = 1, stop = 2)) %>%
+  select(isolate1, group1, isolate2, group2, value) %>%
+  filter(is.na(value) == FALSE,
+         group1 == group2) %>%
+  arrange(group1, group2)
+
+
+
+below_calc <- function(df, run, dist_value = 0.1) {
+  df <- df %>%
+    group_by(group1, group2) %>%
+    mutate(n = value < dist_value) %>%
+    group_by(group1, group2, n) %>%
+    count() %>%
+    ungroup() %>%
+    mutate(n = ifelse(n == TRUE, "Below", "Above")) %>%
+    spread(n, nn) %>%
+    mutate(Below = ifelse(is.na(Below) == TRUE, 0, Below)) %>%
+    mutate(Percent_below = round(Below / (Above + Below) * 100, 2),
+           iter = run)
+  return(df)
+}
+    
+below_calc2 <- function(df, run, dist_value = 0.1) {
+  df <- df %>%
+    group_by(group1, group2) %>%
+    mutate(n = n()) %>%
+    sample_n(min(.$n)) %>%
+    select(-n) %>%
+    mutate(n = value < dist_value) %>%
+    group_by(group1, group2, n) %>%
+    count() %>%
+    ungroup() %>%
+    mutate(n = ifelse(n == TRUE, "Below", "Above")) %>%
+    spread(n, nn) %>%
+    mutate(Below = ifelse(is.na(Below) == TRUE, 0, Below)) %>%
+    mutate(Percent_below = round(Below / (Above + Below) * 100, 2),
+           iter = run)
+  return(df)
+}
+
+above_calc <- function(df, run, dist_value = 0.9) {
+  df <- df %>%
+    group_by(group1, group2) %>%
+    mutate(n = value > dist_value) %>%
+    group_by(group1, group2, n) %>%
+    count() %>%
+    ungroup() %>%
+    mutate(n = ifelse(n == TRUE, "Above", "Below")) %>%
+    spread(n, nn) %>%
+    mutate(Above = ifelse(is.na(Above) == TRUE, 0, Above)) %>%
+    mutate(Percent_above = round(Above / (Above + Below) * 100, 2),
+           iter = run)
+  return(df)
+}
+
+above_calc2 <- function(df, run, dist_value = 0.9) {
+  df <- df %>%
+    group_by(group1, group2) %>%
+    mutate(n = n()) %>%
+    sample_n(min(.$n)) %>%
+    select(-n) %>%
+    mutate(n = value > dist_value) %>%
+    group_by(group1, group2, n) %>%
+    count() %>%
+    ungroup() %>%
+    mutate(n = ifelse(n == TRUE, "Above", "Below")) %>%
+    spread(n, nn) %>%
+    mutate(Above = ifelse(is.na(Above) == TRUE, 0, Above)) %>%
+    mutate(Percent_above = round(Above / (Above + Below) * 100, 2),
+           iter = run)
+  return(df)
+}
+
+mean_calc <- function(df, run) {
+  df <- df %>%
+    group_by(group1, group2) %>%
+    mutate(metric = round(mean(value), 2)) %>%
+    select(group1, group2, metric) %>%
+    summarise_all(funs(func_paste)) %>%
+    mutate(iter = run,
+           metric = as.numeric(metric))
+}
+
+median_calc <- function(df, run) {
+  df <- df %>%
+    group_by(group1, group2) %>%
+    mutate(metric = round(median(value), 2)) %>%
+    select(group1, group2, metric) %>%
+    summarise_all(funs(func_paste)) %>%
+    mutate(iter = run,
+           metric = as.numeric(metric))
+}
+
+quantile_calc <- function(df, run) {
+  df <- df %>%
+    group_by(group1, group2) %>%
+    mutate(quant_0 = quantile(value)[1],
+           quant_25 = quantile(value)[2],
+           quant_50 = quantile(value)[3],
+           quant_75 = quantile(value)[4],
+           quant_100 = quantile(value)[5]) %>%
+    select(group1, group2, contains("quant")) %>%
+    summarise_all(funs(func_paste)) %>%
+    mutate_at(vars(contains("quant")),
+              funs(as.numeric)) %>%
+    mutate(iter = run)
+}
+
+
+iterate_samples <- function(df, run, method = "mean", dist_value) {
+
+  df <- df %>%
+    mutate(value = sample(value))
+  
+    if (method == "mean") {
+      df <- mean_calc(df, run)
+    }
+  
+    if (method == "below") {
+     df <- below_calc2(df, run, dist_value)
+    }
+  
+    if (method == "above") {
+     df <- above_calc2(df, run, dist_value)
+    }
+    
+    if (method == "median") {
+      df <- median_calc(df, run)
+    }
+    
+    if (method == "quantile") {
+      df <- quantile_calc(df, run)
+    }
+    
+    return(df)
+}
+
+# run iterations on selected data frame
+run_iterations <- function(df, runs = 1000, seed = 10, method = "mean", dist_value) {
+  # set seed
+  set.seed(seed)
+  
+  # create output list
+  output <- list()
+  
+  # create expected values
+    if (method == "mean") {
+      orig <- mean_calc(df, 0)
+    }
+  
+    if (method == "below") {
+     orig <- below_calc(df, 0, dist_value)
+    }
+  
+   if (method == "above") {
+     orig <- above_calc(df, 0, dist_value)
+    }
+    
+    if (method == "median") {
+      orig <- median_calc(df, 0)
+    }
+  
+    if (method == "quantile") {
+      orig <- quantile_calc(df, 0)
+    }
+  
+  output <- c(output, list(orig))
+  
+  # run iterations
+  for (i in 1:runs) {
+    result <- iterate_samples(df,
+                              i,
+                              method = method,
+                              dist_value = dist_value)
+    output <- c(output, list(result))
+  }
+  return(output)
+}
+
+# create distribution plots from iteration data
+create_plot <- function(df, group_one, column, exp_value, title, binwidth = 0.2) {
+  
+  df %>%
+    filter(group1 == group_one) %>%
+    ggplot(aes(!! sym(column))) +
+    geom_histogram(binwidth = 0.2, color = "black",
+                   fill = "grey80") +
+    geom_segment(aes(x = exp_value, xend = exp_value, y = 70, yend = 0),
+                 arrow = arrow(length = unit(0.5, "cm"))) +
+    annotate("text", x = exp_value, y = 75, label = "Expected value", angle = 90, size = 3, hjust = 0) +
+    ggtitle(title)
+}
+
+# Run functions
+complete_data_below <- run_iterations(run_df,
+                                runs = 1000,
+                                method = "below",
+                                dist_value = 0.1) %>%
+  bind_rows()
+
+
+complete_data_above <- run_iterations(run_df,
+                                runs = 1000,
+                                method = "above",
+                                dist_value = 0.8) %>%
+  bind_rows()
+
+# Plots
+
+p1 <- ggplot(complete_data_below, aes(Percent_below)) +
+  geom_histogram(aes(y = ..density..), binwidth = 0.2, color = "black",
+                fill = "grey80") +
+  stat_function(fun = dnorm,
+                args = with(complete_data_below, c(mean = mean(Percent_below), sd = sd(Percent_below))),
+                color = "red") +
+  geom_segment(aes(x = complete_data_below$Percent_below[1],
+                   xend = complete_data_below$Percent_below[1], y = 0.15, yend = 0),
+               arrow = arrow(length = unit(0.4, "cm"),
+                             type = "closed"),
+               color = "#4575b4") +
+  geom_segment(aes(x = complete_data_below$Percent_below[2],
+                   xend = complete_data_below$Percent_below[2], y = 0.15, yend = 0),
+               arrow = arrow(length = unit(0.4, "cm"),
+                             type = "closed"),
+               color = "#74add1") +
+  geom_segment(aes(x = complete_data_below$Percent_below[3],
+                   xend = complete_data_below$Percent_below[3], y = 0.15, yend = 0),
+               arrow = arrow(length = unit(0.4, "cm"),
+                             type = "closed"),
+               color = "#f46d43") +
+  geom_segment(aes(x = complete_data_below$Percent_below[4],
+                   xend = complete_data_below$Percent_below[4], y = 0.15, yend = 0),
+               arrow = arrow(length = unit(0.4, "cm"),
+                             type = "closed"),
+               color = "#fdae61") +
+  geom_vline(xintercept = mean(complete_data_below$Percent_below),
+             size = 1)
+
+
+p2 <- ggplot(complete_data_above, aes(Percent_above)) +
+  geom_histogram(aes(y = ..density..), binwidth = 0.2, color = "black",
+                fill = "grey80") +
+  stat_function(fun = dnorm,
+                args = with(complete_data_above, c(mean = mean(Percent_above), sd = sd(Percent_above))),
+                color = "red") +
+  geom_segment(aes(x = complete_data_above$Percent_above[1],
+                   xend = complete_data_above$Percent_above[1], y = 0.15, yend = 0),
+               arrow = arrow(length = unit(0.4, "cm"),
+                             type = "closed"),
+               color = "#4575b4") +
+  geom_segment(aes(x = complete_data_above$Percent_above[2],
+                   xend = complete_data_above$Percent_above[2], y = 0.15, yend = 0),
+               arrow = arrow(length = unit(0.4, "cm"),
+                             type = "closed"),
+               color = "#74add1") +
+  geom_segment(aes(x = complete_data_above$Percent_above[3],
+                   xend = complete_data_above$Percent_above[3], y = 0.15, yend = 0),
+               arrow = arrow(length = unit(0.4, "cm"),
+                             type = "closed"),
+               color = "#f46d43") +
+  geom_segment(aes(x = complete_data_above$Percent_above[4],
+                   xend = complete_data_above$Percent_above[4], y = 0.15, yend = 0),
+               arrow = arrow(length = unit(0.4, "cm"),
+                             type = "closed"),
+               color = "#fdae61") +
+  geom_vline(xintercept = mean(complete_data_above$Percent_above),
+             size = 1)
+
+plot_grid(p1, p2, ncol = 2, nrow = 1, align = "v")
+
+
+mean_data_below <- complete_data_below %>%
+  mutate(mean = mean(Percent_below),
+         dist_from_mean = mean - Percent_below)
+
+mp1 <- ggplot(mean_data_below, aes(dist_from_mean))+
+  geom_histogram(binwidth = 0.15,
+                 color = "black") +
+  geom_segment(aes(x = mean_data_below$dist_from_mean[1],
+                   xend = mean_data_below$dist_from_mean[1], y = 100, yend = 0),
+               arrow = arrow(length = unit(0.4, "cm"),
+                             type = "closed"),
+               color = "#4575b4") +
+  geom_segment(aes(x = mean_data_below$dist_from_mean[2],
+                   xend = mean_data_below$dist_from_mean[2], y = 100, yend = 0),
+               arrow = arrow(length = unit(0.4, "cm"),
+                             type = "closed"),
+               color = "#74add1") +
+  geom_segment(aes(x = mean_data_below$dist_from_mean[3],
+                   xend = mean_data_below$dist_from_mean[3], y = 100, yend = 0),
+               arrow = arrow(length = unit(0.4, "cm"),
+                             type = "closed"),
+               color = "#f46d43") +
+  geom_segment(aes(x = mean_data_below$dist_from_mean[4],
+                   xend = mean_data_below$dist_from_mean[4], y = 100, yend = 0),
+               arrow = arrow(length = unit(0.4, "cm"),
+                             type = "closed"),
+               color = "#fdae61")
+
+mean_data_above <- complete_data_above %>%
+  mutate(mean = mean(Percent_above),
+         dist_from_mean = mean - Percent_above)
+
+mp2 <- ggplot(mean_data_above, aes(dist_from_mean))+
+  geom_histogram(binwidth = 0.15,
+                 color = "black") +
+  geom_segment(aes(x = mean_data_above$dist_from_mean[1],
+                   xend = mean_data_above$dist_from_mean[1], y = 50, yend = 0),
+               arrow = arrow(length = unit(0.4, "cm"),
+                             type = "closed"),
+               color = "#4575b4") +
+  geom_segment(aes(x = mean_data_above$dist_from_mean[2],
+                   xend = mean_data_above$dist_from_mean[2], y = 50, yend = 0),
+               arrow = arrow(length = unit(0.4, "cm"),
+                             type = "closed"),
+               color = "#74add1") +
+  geom_segment(aes(x = mean_data_above$dist_from_mean[3],
+                   xend = mean_data_above$dist_from_mean[3], y = 50, yend = 0),
+               arrow = arrow(length = unit(0.4, "cm"),
+                             type = "closed"),
+               color = "#f46d43") +
+  geom_segment(aes(x = mean_data_above$dist_from_mean[4],
+                   xend = mean_data_above$dist_from_mean[4], y = 50, yend = 0),
+               arrow = arrow(length = unit(0.4, "cm"),
+                             type = "closed"),
+               color = "#fdae61")
+
+
+plot_grid(mp1, mp2, ncol = 2, nrow = 1, align = "v")
+
+chsq_data_below <- complete_data_below[1:4,] %>%
+  mutate(Total = Above + Below)
+
+br_pi_csq <- chsq_data_below[1:2,] %>%
+  select(Total, Below) %>%
+  as.matrix
+
+br_rf_csq <- chsq_data_below[c(1,3),] %>%
+  select(Total, Below) %>%
+  as.matrix
+
+br_wb_csq <- chsq_data_below[c(1,4),] %>%
+  select(Total, Below) %>%
+  as.matrix
+
+pi_rf_csq <- chsq_data_below[c(2,3),] %>%
+  select(Total, Below) %>%
+  as.matrix
+
+pi_wb_csq <- chsq_data_below[c(2,4),] %>%
+  select(Total, Below) %>%
+  as.matrix
+
+rf_wb_csq <- chsq_data_below[c(3,4),] %>%
+  select(Total, Below) %>%
+  as.matrix
+
+chisq.test(br_pi_csq, correct = FALSE)
+chisq.test(br_rf_csq, correct = FALSE)
+chisq.test(br_wb_csq, correct = FALSE)
+chisq.test(pi_rf_csq, correct = FALSE)
+chisq.test(pi_wb_csq, correct = FALSE)
+chisq.test(rf_wb_csq, correct = FALSE)
+
+
+
+
+
+
+```
+
+
+
+
+
