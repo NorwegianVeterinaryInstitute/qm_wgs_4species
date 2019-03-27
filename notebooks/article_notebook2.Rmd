@@ -21,9 +21,18 @@ output:
 
 ```{r load libraries, message=FALSE, warning=FALSE}
 # Libraries
-# WARNING: This will install packages on your system if not present in library path!
-if (!require("pacman")) install.packages("pacman")
-pacman::p_load(dplyr, ggplot2, tidyr, cowplot, viridis, forcats, radiant.data, purrr, phangorn, gridExtra, ggtree, ape, cluster, tibble, Biostrings, seqinr, stringr, scales, reprex)
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(cowplot)
+library(viridis)
+library(purrr)
+library(tibble)
+library(stringr)
+library(Biostrings)
+library(seqinr)
+library(scales)
+library(gridExtra)
 ```
 
 ```{r Import data, include = FALSE}
@@ -117,7 +126,7 @@ resfinder_report_loc <- "../data/ariba/resfinder_results"
 # the generated gene names from the "fix_gene_names" function
 ac_genes <- c("qnr","oqx","qep","aac6")
 mut_genes <- c("gyr","par","marR","marA",
-               "sox","rpoB","rob","gad")
+               "sox","rpoB","rob")
 
 # -------------------------- Functions ----------------------------
 
@@ -209,7 +218,8 @@ fix_gene_names <- function(df) {
   df <- df %>%
     left_join(df2, by = "ref_name") %>%
     mutate(gene_names = as.character(gene_names),
-           ref = gsub("(.*?)_amr_report.tsv", "\\1", ref))
+           ref = gsub("(.*?)_amr_report.tsv", "\\1", ref)) %>%
+    mutate(gene_names = ifelse(gene_names == "soxS", "soxR", gene_names))
   
   return(df)
 }
@@ -753,6 +763,23 @@ mut_report %>%
   arrange(desc(Percent))
 ```
 
+## Percent mutations in each intrinsic gene per animal species
+```{r}
+mut_report %>%
+  select(-nt_change) %>%
+  left_join(isolate_data[,c("id","species")], by = "id") %>%
+  gather(gene, value, -c(id, species)) %>%
+  group_by(gene, species, value) %>%
+  dplyr::count() %>%
+  ungroup() %>%
+  mutate(value = ifelse(value == 1, "Present", "Absent")) %>%
+  spread(value, n, fill = 0) %>%
+  mutate(Total = Present + Absent,
+         Percent = round(Present/Total * 100,1)) %>%
+  arrange(gene)
+```
+
+
 ## Specific mutations in QRDR
 This table presents the specific mutations identified in the QRDR of _gyrA_, _gyrB_, _parC_ and _parE_.
 ```{r, warning=FALSE, message=FALSE}
@@ -924,20 +951,27 @@ mut_filtered %>%
   dplyr::count() %>%
   ungroup() %>%
   filter(n > 2) %>%
-  mutate(percent = case_when(
-    gene == "gadX" ~ 
-      round(n / length(which(mut_report[, "gadX"] == 1))*100, 1),
+  mutate(Total = case_when(
+    gene == "marA" ~
+      length(which(mut_report[, "marA"] == 1)),
+    gene == "marR" ~
+      length(which(mut_report[, "marR"] == 1)),
+    gene == "rpoB" ~
+      length(which(mut_report[, "rpoB"] == 1)),
+    gene == "soxR" ~
+      length(which(mut_report[, "soxR"] == 1))),
+         percent = case_when(
     gene == "marA" ~ 
-      round(n / length(which(mut_report[, "marA"] == 1))*100, 1),
+      round(n / Total*100, 1),
     gene == "marR" ~ 
-      round(n / length(which(mut_report[, "marR"] == 1))*100, 1),
+      round(n / Total*100, 1),
     gene == "rpoB" ~ 
-      round(n / length(which(mut_report[, "rpoB"] == 1))*100, 1),
-    gene == "soxS" ~ 
-      round(n / length(which(mut_report[, "soxS"] == 1))*100, 1))) %>%
+      round(n / Total*100, 1),
+    gene == "soxR" ~ 
+      round(n / Total*100, 1))) %>%
   arrange(gene, desc(percent)) %>%
   dplyr::rename("Gene" = gene,
-                "Mutation" = value,
+                "Substitution" = value,
                 "Percent" = percent)
 
 ```
@@ -973,7 +1007,7 @@ mut_report %>%
   mutate_at(vars(qnrA1,qnrB19,qnrB6,qnrB60,qnrS1,qnrS2,qnrS4),
             funs(as.numeric(.))) %>%
   # summarise qnr-genes
-  mutate(qnr = ifelse(rowSums(.[,13:19]) == 0, 0, 1)) %>%
+  mutate(qnr = ifelse(rowSums(.[,12:18]) == 0, 0, 1)) %>%
   left_join(mic_data[c("id","CIP","NAL")], by = "id") %>%
   select(-c(id,qnrA1,qnrB19,qnrB6,qnrB60,qnrS1,qnrS2,qnrS4)) %>%
   group_by_all() %>%
@@ -1335,9 +1369,7 @@ test <- mut_quant %>%
 cor.test(test$gyrA_S83L, test$qnr)
 ```
 
-## Double-check ARIBA results
-This chunk double-checks the mutations found in _gyrA_, _parC_ and _parE_ against an internal mutation analysis script. The sequences are taken from Prokka, and reference wild-type versions of the genes are used to identify mismatches with the sample sequences.
-```{r, warning=FALSE, message=FALSE}
+```{r, include=FALSE}
 # Functions
 mismatches <- function(query, ref) {
   pairwiseAlignment(ref, query, substitutionMatrix = "BLOSUM50",
@@ -1535,7 +1567,7 @@ mlst_mechanisms_report <- mut_report %>%
   left_join(acquired_report, by = "id") %>%
   mutate_at(vars(qnrA1,qnrB19,qnrB6,qnrB60,qnrS1,qnrS2,qnrS4),
             funs(as.numeric(.))) %>%
-  mutate(qnr = ifelse(rowSums(.[,14:20]) == 0, 0, 1)) %>%
+  mutate(qnr = ifelse(rowSums(.[,13:19]) == 0, 0, 1)) %>%
   select(-c(qnrA1,qnrB19,qnrB6,qnrB60,qnrS1,qnrS2,qnrS4,nt_change)) %>%
   gather(gene, value, -id) %>%
   mutate(present = ifelse(value == 1, gene, NA),
@@ -1591,7 +1623,7 @@ total_mechanisms <- mut_report %>%
   left_join(acquired_report, by = "id") %>%
   mutate_at(vars(qnrA1,qnrB19,qnrB6,qnrB60,qnrS1,qnrS2,qnrS4),
             funs(as.numeric(.))) %>%
-  mutate(qnr = ifelse(rowSums(.[,13:19]) == 0, 0, 1)) %>%
+  mutate(qnr = ifelse(rowSums(.[,13:18]) == 0, 0, 1)) %>%
   select(-c(qnrA1,qnrB19,qnrB6,qnrB60,qnrS1,qnrS2,qnrS4)) %>%
   gather(gene, result, -id) %>%
   group_by(gene, result) %>%
@@ -1647,8 +1679,11 @@ mut_report %>%
       upr = round(get_binCI(Present, Total)[2], 1)
     ) %>%
     mutate(species = factor(species,
-                            levels = c("Broiler","Pig","Wild bird","Red fox"))) %>%
-    ggplot(aes(reorder(key, -Percent), Percent, fill = species)) +
+                            levels = c("Broiler","Pig","Wild bird","Red fox")),
+           key = paste0(toupper(substr(key, 1, 1)),
+                        substr(key, 2, nchar(key))),
+           group = if_else(key %in% c("GyrA","GyrB","ParC","ParE"), 1, 2)) %>%
+  ggplot(aes(key, Percent, fill = species)) +
     geom_col(color = "black",
              position = position_dodge(1)) +
     geom_errorbar(
@@ -1657,6 +1692,9 @@ mut_report %>%
       position = position_dodge(1)
     ) +
     scale_fill_manual(values = palette) +
+    scale_x_discrete(labels = c("GyrA","GyrB","ParC","ParE",
+                                "MarA","MarR","SoxR","RpoB",
+                                "RobA")) +
     labs(y = "Percent (%) of isolates") +
     guides(fill = FALSE) +
     theme_classic() +
@@ -1756,23 +1794,31 @@ acquired_report %>%
     rowwise() %>%
     mutate(
       Total = Present + Absent,
-      Percent = round(Present / Total * 100, 1)
+      Percent = round(Present / Total * 100, 1),
+      lwr = round(get_binCI(Present, Total)[1], 1),
+      upr = round(get_binCI(Present, Total)[2], 1)
     ) %>%
     ggplot(aes(key, Percent, fill = species)) +
     geom_col(color = "black",
              position = position_dodge(0.9)) +
+    geom_errorbar(
+      aes(ymin = lwr, ymax = upr),
+      width = 0.6,
+      position = position_dodge(0.9)
+    ) +
     scale_fill_manual(values = palette) +
     labs(y = "Percent (%) of isolates",
          fill = NULL) +
     theme_classic() +
     theme(
       axis.text = element_text(size = 12),
+      axis.text.x = element_text(face = "italic"),
       axis.title.y = element_text(size = 14),
       legend.text = element_text(size = 12),
       axis.title.x = element_blank(),
       legend.justification = c(0, 1),
       legend.position = c(0.82, 0.97)
-    )
+      )
 ```
 
 ## Correlation plot for resistance mechanisms
@@ -1813,18 +1859,17 @@ corr_matrices <- lapply(total_df, function(x) create_corr_matrix(x)) %>%
                           gene1 == "marR" ~ 5,
                           gene1 == "marA" ~ 6,
                           gene1 == "rpoB" ~ 7,
-                          gene1 == "soxS" ~ 8,
+                          gene1 == "soxR" ~ 8,
                           gene1 == "robA" ~ 9,
-                          gene1 == "gadX" ~ 10,
-                          gene1 == "qnrA1" ~ 11,
-                          gene1 == "qnrB19" ~ 12,
-                          gene1 == "qnrB6" ~ 13,
-                          gene1 == "qnrB60" ~ 14,
-                          gene1 == "qnrS1" ~ 15,
-                          gene1 == "qnrS2" ~ 16,
-                          gene1 == "qnrS4" ~ 17,
-                          gene1 == "qnr" ~ 18,
-                          gene1 == "qepA4" ~ 19),
+                          gene1 == "qnrA1" ~ 10,
+                          gene1 == "qnrB19" ~ 11,
+                          gene1 == "qnrB6" ~ 12,
+                          gene1 == "qnrB60" ~ 13,
+                          gene1 == "qnrS1" ~ 14,
+                          gene1 == "qnrS2" ~ 15,
+                          gene1 == "qnrS4" ~ 16,
+                          gene1 == "qnr" ~ 17,
+                          gene1 == "qepA4" ~ 18),
            type2 = case_when(gene2 == "gyrA" ~ 1,
                           gene2 == "gyrB" ~ 2,
                           gene2 == "parC" ~ 3,
@@ -1832,18 +1877,17 @@ corr_matrices <- lapply(total_df, function(x) create_corr_matrix(x)) %>%
                           gene2 == "marR" ~ 5,
                           gene2 == "marA" ~ 6,
                           gene2 == "rpoB" ~ 7,
-                          gene2 == "soxS" ~ 8,
+                          gene2 == "soxR" ~ 8,
                           gene2 == "robA" ~ 9,
-                          gene2 == "gadX" ~ 10,
-                          gene2 == "qnrA1" ~ 11,
-                          gene2 == "qnrB19" ~ 12,
-                          gene2 == "qnrB6" ~ 13,
-                          gene2 == "qnrB60" ~ 14,
-                          gene2 == "qnrS1" ~ 15,
-                          gene2 == "qnrS2" ~ 16,
-                          gene2 == "qnrS4" ~ 17,
-                          gene2 == "qnr" ~ 18,
-                          gene2 == "qepA4" ~ 19))
+                          gene2 == "qnrA1" ~ 10,
+                          gene2 == "qnrB19" ~ 11,
+                          gene2 == "qnrB6" ~ 12,
+                          gene2 == "qnrB60" ~ 13,
+                          gene2 == "qnrS1" ~ 14,
+                          gene2 == "qnrS2" ~ 15,
+                          gene2 == "qnrS4" ~ 16,
+                          gene2 == "qnr" ~ 17,
+                          gene2 == "qepA4" ~ 18))
 
 cols <- c("#e7f0fa","#c9e2f6","#95cbee","#0099dc","#4ab04a",
           "#ffd73e","#eec73a","#e29421","#f05336","#ce472e")
@@ -1863,6 +1907,140 @@ ggplot(corr_matrices, aes(reorder(var1, type1), reorder(var2, type2), fill = val
   facet_wrap(~species)
 ```
 
+## Mechanisms per animal species
+```{r, fig.height=10, fig.width=15, warning=FALSE, message=FALSE}
+AddCol <- function(df, col_name) {
+  # split rows by delimeters
+  string_to_proc <- df %>% select(!!col_name) %>%
+    unlist() %>% str_split(regex("\\, |\\,")) 
+  # find unique entries
+  unique_strings <- string_to_proc %>%
+    unlist() %>% unique()
+  # construct names of the new columns
+  cols_names <- paste(col_name, unique_strings, sep = "_")
+  # construct 0/1-content columns for each unique entry
+  cols_content <- sapply(function(i) {
+    as.integer(unlist(lapply(function(Z) any(Z %in% unique_strings[i]), 
+                             X = string_to_proc)))
+  }, X = seq_along(unique_strings))
+  res <- data.frame(cols_content)
+  names(res) <- cols_names
+  return(res)
+}
+
+total_df <- acquired_report %>%
+  left_join(mut_quant[c("gyrA","gyrB","parC","parE","id")], by = "id") %>%
+  left_join(mut_report[c("id","marR","marA","rpoB","soxR","robA")], by = "id") %>%
+  left_join(isolate_data[c("id", "species")])
+
+names(total_df) <- c("id","qepA4","qnrA1","qnrB19",
+                     "qnrB6","qnrB60","qnrS1","qnrS2",
+                     "qnrS4","gyrA","gyrB","parC",
+                     "parE","MarR","MarA","RpoB",
+                     "SoxR","RobA","species")
+
+col_proc <- c("gyrA","gyrB","parC","parE")
+
+id <- total_df$id
+
+cols_to_add <- sapply(function(i) {AddCol(df = total_df, col_name = col_proc[i])},
+                      X = seq_along(col_proc)) %>%
+  bind_cols() %>%
+  cbind(id) %>%
+  gather(key, value, -id) %>%
+  filter(grepl("(.*?)_0", key) == FALSE) %>%
+  spread(key, value)
+
+total_df2 <- total_df %>%
+  select(-c(gyrA, gyrB, parC, parE)) %>%
+  left_join(cols_to_add, by = "id") %>%
+  select(id, species, everything()) %>%
+  mutate_at(vars(qnrA1,qnrB19,qnrB6,qnrB60,qnrS1,qnrS2,qnrS4),
+            funs(as.numeric(.))) %>%
+  mutate(qnr = ifelse(rowSums(.[,4:10]) == 0, 0, 1)) %>%
+  select(-c(qnrA1,qnrB19,qnrB6,qnrB60,qnrS1,qnrS2,qnrS4)) %>%
+  left_join(mic_data[c("id","CIP")], by = "id") %>%
+  select(-id) %>%
+  mutate_at(vars(-species, CIP),
+            funs(as.numeric(as.character(.)))) %>%
+  group_by(species, CIP) %>%
+  summarise_all(funs(sum, n = n())) %>%
+  dplyr::rename("n" = MarR_n) %>%
+  select(-contains("_n")) %>%
+  gather(gene, value, -c(species, CIP, n)) %>%
+  mutate(gene2 = sub("(.*?)_(.*?)_sum", "\\1", gene),
+         gene2 = sub("(.*?)_sum", "\\1", gene2),
+         gene = sub("(.*?)_(.*?)_sum", "\\2", gene),
+         gene = sub("(.*?)_sum", "\\1", gene),
+         type = case_when(gene2 == "gyrA" ~ 1,
+                          gene2 == "gyrB" ~ 2,
+                          gene2 == "parC" ~ 3,
+                          gene2 == "parE" ~ 4,
+                          gene2 == "MarR" ~ 5,
+                          gene2 == "MarA" ~ 6,
+                          gene2 == "RpoB" ~ 7,
+                          gene2 == "SoxR" ~ 8,
+                          gene2 == "RobA" ~ 9,
+                          gene2 == "qnr" ~ 10,
+                          gene2 == "qepA4" ~ 11),
+         perc = value/n*100)
+
+p1 <- ggplot(total_df2, aes(reorder(gene, type), factor(CIP), fill = perc))+
+  geom_tile()+
+  scale_fill_viridis(option = "A",
+                     begin = 0.1,
+                     guide = guide_colorbar(barheight = 10,
+                                            barwidth = 0.8,
+                                            label.position = "left",
+                                            label.hjust = 0.5,
+                                            label.vjust = 0.3,
+                                            ticks = TRUE))+
+  theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.3, size = 10),
+        axis.text.y = element_text(size = 10),
+        axis.title.x = element_blank(),
+        axis.title.y = element_text(size = 10),
+        strip.background = element_rect(colour = "black", fill = "grey70"),
+        strip.text = element_text(size = 12),
+        legend.position = "left",
+        legend.title = element_blank(),
+        legend.text = element_text(size = 10),
+        plot.margin = unit(c(0,0,0,0), "cm"))+
+  labs(y = "CIP MIC")+
+  facet_wrap(~species, ncol = 1)+
+  coord_fixed()
+
+nplot_data <- total_df %>%
+  left_join(mic_data[c("id","CIP")], by = "id") %>%
+  group_by(species, CIP) %>%
+  dplyr::count() %>%
+  ungroup()
+
+n_names <- c("Broiler" = "n",
+             "Pig" = "n",
+             "Red fox" = "n",
+             "Wild bird" = "n")
+
+p2 <- ggplot(nplot_data, aes(factor(CIP), n))+
+  geom_col()+
+  theme(axis.title = element_blank(),
+        axis.text.y = element_blank(),
+        axis.text.x = element_text(size = 10),
+        axis.ticks.y = element_blank(),
+        strip.text = element_text(size = 12, face = "italic"),
+        strip.background = element_rect(colour = "black", fill = "grey70"),
+        plot.margin = unit(c(0,0,-10,0), "cm"))+
+  facet_wrap(~species, ncol = 1, labeller = as_labeller(n_names))+
+  coord_flip()
+
+p1g <- ggplotGrob(p1)
+p2g <- ggplotGrob(p2)
+
+g <- cbind(p1g, p2g, size = "first")
+
+grid.arrange(g)
+```
+
+
 ## MIC-plots
 ```{r}
 total_report <- mut_report %>%
@@ -1870,7 +2048,7 @@ total_report <- mut_report %>%
   dplyr::select(-nt_change) %>%
   mutate_at(vars(-id),
             funs(as.numeric(.))) %>%
-  mutate(qnr = ifelse(rowSums(.[,13:19]) > 0, 1, 0)) %>%
+  mutate(qnr = ifelse(rowSums(.[,12:18]) > 0, 1, 0)) %>%
   select(-c(qnrA1,qnrB19,qnrB6,qnrB60,qnrS1,qnrS2,qnrS4)) %>%
   gather(gene, value, -id) %>%
   mutate(present = ifelse(value == 1, gene, NA),
@@ -1917,7 +2095,7 @@ dot_report <- mut_report %>%
   select(-nt_change) %>%
   mutate_at(vars(-id),
             funs(as.numeric(.))) %>%
-  mutate(qnr = ifelse(rowSums(.[,13:19]) > 0, 1, 0)) %>%
+  mutate(qnr = ifelse(rowSums(.[,12:18]) > 0, 1, 0)) %>%
   select(-c(qnrA1,qnrB19,qnrS1,qnrS2,qnrS4)) %>%
   gather(gene, value, -id) %>%
   mutate(present = ifelse(value == 1, gene, NA),
@@ -1940,7 +2118,7 @@ dot_report <- mut_report %>%
 
 dot_plot <- ggplot(dot_report, aes(reorder(present, entries), gene, fill = gene))+
   geom_point(size = 2)+
-  scale_y_discrete(limits = c("gyrA","parC","parE","gadX","marA","marR","rpoB","soxS","qepA4","qnr"))+
+  scale_y_discrete(limits = c("gyrA","parC","parE","marA","marR","rpoB","soxR","qepA4","qnr"))+
   guides(fill = FALSE)+
   theme(axis.text.x = element_blank(),
         axis.text.y = element_text(size = 8),

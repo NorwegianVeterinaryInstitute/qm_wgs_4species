@@ -29,9 +29,14 @@ library(Biostrings)
 library(ape)
 library(tibble)
 library(cowplot)
+library(knitr)
+library(png)
 ```
 
-# cgMLST Schema and quality control
+# Core genome MLST schema and quality control
+The _E. coli_ scheme from Enterobase [1] was used with chewBBACA [2] to get the cgMLST profile for each isolate.
+The number of missing loci in total (sum of LNF, NIPH, PLOT, ALM and ASM from chewBBACA) is plotted below for all isolates.
+
 ```{r import data}
 # Vector of excluded samples
 ex_samples <- c(
@@ -67,6 +72,11 @@ cgmlst_stats <- read.table("../data/chewbbaca/complete_results/mdata_stats.tsv",
                          header = TRUE,
                          stringsAsFactors = FALSE)
 
+detailed_cgmlst_stats <- read.table("../data/chewbbaca/results_statistics.tsv",
+                                    sep = "\t",
+                                    header = TRUE,
+                                    stringsAsFactors = FALSE)
+
 cgMLST_allele_data <- read.table("../data/chewbbaca/complete_results/cgMLST.tsv",
                               sep = "\t",
                               header = TRUE,
@@ -79,12 +89,41 @@ cgMLST_allele_data <- read.table("../data/chewbbaca/complete_results/cgMLST.tsv"
 
 ```
 
-```{r Number of missing loci}
+```{r cgMLST stats}
 boxplot(cgmlst_stats$number.of.missing.data,
         ylab = "Number of missing loci")
 ```
 
+Below follows the detailed results for all loci in the cgMLST scheme. EXC = excact matches, INF = novel allele, LNF = locus not found, NIPH = paralogous locus, PLOT = possible loci on tip of contig, ALM = allele 20 % larger than reference, ASM = allele 20 % smaller than reference. The numbers below each boxplot denote the mean.
+
+```{r}
+test <- detailed_cgmlst_stats %>%
+  gather(metric, value, -Genome) %>%
+  group_by(metric) %>%
+  mutate(mean_val = round(mean(value), 1))
+
+ggplot(test, aes(metric, value)) +
+  stat_boxplot(geom = "errorbar", width = 0.5) +
+  geom_boxplot() +
+  geom_text(data = subset(test,
+                          Genome == "2006-01-2184_S30_pilon_spades.fasta"),
+            aes(label = mean_val),
+            y = -60,
+            size = 3.8) +
+  scale_x_discrete(limits = c("EXC",
+                              "INF",
+                              "LNF",
+                              "NIPH",
+                              "PLOT",
+                              "ALM",
+                              "ASM")) +
+  labs(y = "Number of loci") +
+  theme(axis.title.x = element_blank(),
+        axis.ticks.x = element_blank())
+```
+
 # Total dendrogram of all isolates
+Genetic distances were calculated from the allele data from the cgMLST report, and a dendrogram was drawn from these distances. The annotations are based on data from the ARIBA resistance gene analysis.
 ```{r, fig.height=20, fig.width=20, message=FALSE, warning=FALSE}
 cgMLST_data <- read.table("../data/chewbbaca/complete_results/clean_cgMLST_data.txt",
                    sep = "\t",
@@ -100,7 +139,8 @@ tree_metadata <- read.table("../data/chewbbaca/complete_results/tree_metadata.tx
 
 tree_heatmap_data <- read.table("../data/chewbbaca/complete_results/tree_heatmap_data.txt",
                             sep = "\t",
-                            header = TRUE)
+                            header = TRUE) %>%
+  select(-gadX)
 
 palette <- c("Broiler" = "#4575b4",
              "Pig" = "#74add1",
@@ -139,6 +179,7 @@ gheatmap(total_tree_opened,
         legend.text = element_text(size = 20))
 ```
 
+# Dendrograms per animal species
 ```{r, fig.height=25, fig.width=25, message=FALSE, warning=FALSE}
 
 metadata_species <- read.table("../data/chewbbaca/complete_results/metadata_species_specific_trees.txt",
@@ -176,30 +217,10 @@ palette3 <- c("0" = "grey95",
               "qepA4" = "#80cdc1",
               # num
               "1" = "#440154FF",
-              "2" = "#471164FF",
-              "3" = "#481F70FF",
-              "4" = "#472D7BFF",
-              "5" = "#443A83FF",
-              "6" = "#404688FF",
-              "7" = "#3B528BFF",
-              "8" = "#365D8DFF",
-              "9" = "#31688EFF",
-              "10" = "#2C728EFF",
-              "11" = "#287C8EFF",
-              "12" = "#24868EFF",
-              "13" = "#21908CFF",
-              "14" = "#1F9A8AFF",
-              "15" = "#20A486FF",
-              "16" = "#27AD81FF",
-              "17" = "#35B779FF",
-              "18" = "#47C16EFF",
-              "19" = "#5DC863FF",
-              "20" = "#75D054FF",
-              "21" = "#8FD744FF",
-              "22" = "#AADC32FF",
-              "23" = "#C7E020FF",
-              "24" = "#E3E418FF",
-              "25" = "#FDE725FF")
+              "2" = "#3B528BFF",
+              "3" = "#21908CFF",
+              "4" = "#5DC863FF",
+              "5" = "#FDE725FF")
 
 # Broiler tree
 broiler_cgMLST <- read.table("../data/chewbbaca/complete_results/broiler_cgmlst.txt",
@@ -223,7 +244,7 @@ broiler_tree_opened <- rotate_tree(open_tree(broiler_tree_annotated, 10), 92.5)
 
 broiler_complete <- gheatmap(broiler_tree_opened,
          metadata_species,
-         offset = 0.09,
+         offset = 0.1,
          width = 0.5,
          colnames_offset_y = 0.75,
          colnames_position = "top",
@@ -303,7 +324,7 @@ bird_tree_annotated <- ggtree(bird_tree,
                                  layout = "circular",
                                  color = "#808080",
                                  size = 0.5) %<+% tree_metadata +
-  geom_tippoint(color = "#f46d43",
+  geom_tippoint(color = "#fdae61",
                 size = 4) +
   geom_tiplab2(aes(label = ST),
                offset = 0.01,
@@ -329,9 +350,14 @@ tot_plot <- plot_grid(broiler_complete,
           nrow = 2,
           ncol = 2,
           align = "h")
-tot_plot
 
+include_graphics("../figures/species_dendrogram.png")
 ```
+
+
+# Statistics
+## Distribution of calculated distances per animal species
+Below follows a plot of the distribution of the lower triangular distances for each animal species. A bimodal distribution is present in all four plots. The filtering values of < 0.1 and > 0.8 is used for downstream statistics to acertain whether the broiler isolates are more homogenous than the isolates from other species.
 
 ```{r}
 # calculates distances from cgMLST data and returns
@@ -415,8 +441,10 @@ plot(x4,
 
 ```
 
-# Statistics
-```{r, warning=FALSE, message=FALSE}
+## Distribution of iterated distances
+Distribution of percentages of distances < 0.1 or > 0.8. The distribution is based on 1000 iterations of the distance data. Observed values are denoted as arrows for each animal species; dark blue = Broiler, light blue = Pig, red = Red fox, yellow = Wild bird. The mean value is denoted as a vertical black line.
+```{r, warning=FALSE, message=FALSE, dpi=300}
+# generate data frame from allele data
 alleles <- cgMLST_allele_data %>%
   left_join(isolate_data[,c("id","species")], by = "id") %>%
   group_by(species) %>%
@@ -430,6 +458,7 @@ alleles <- cgMLST_allele_data %>%
   mutate_all(funs(as.factor)) %>%
   column_to_rownames("new_id")
 
+# generate data frame for iteration analysis
 run_df <- lower_tri_dist_calc(alleles, data_frame = TRUE) %>%
   rownames_to_column("id") %>%
   gather(isolate1, value, -id) %>%
@@ -441,12 +470,47 @@ run_df <- lower_tri_dist_calc(alleles, data_frame = TRUE) %>%
          group1 == group2) %>%
   arrange(group1, group2)
 
+# functions used in iteration analyses
 
-
-below_calc <- function(df, run, dist_value = 0.1) {
+## Calculates the sum of observations lower than dist_value1 and
+## bigger than dist_value2, and calculates the percentage of
+## observed values for each group
+without <- function(df, run, dist_value1 = 0.1, dist_value2 = 0.8) {
   df <- df %>%
     group_by(group1, group2) %>%
-    mutate(n = value < dist_value) %>%
+    mutate(n = value < dist_value1 | value > dist_value2) %>%
+    group_by(group1, group2, n) %>%
+    count() %>%
+    ungroup() %>%
+    mutate(n = ifelse(n == TRUE, "Within", "Without")) %>%
+    spread(n, nn) %>%
+    mutate(Percent = round(Within / (Within + Without) * 100, 2),
+           iter = run)
+  return(df)
+}
+
+## Calculates the sum of observations between dist_value1 and dist_value2
+## and calculates the percentage of observed values for each group
+within <- function(df, run, dist_value1 = 0.1, dist_value2 = 0.8) {
+  df <- df %>%
+    group_by(group1, group2) %>%
+    mutate(n = value > dist_value1 & value < dist_value2) %>%
+    group_by(group1, group2, n) %>%
+    count() %>%
+    ungroup() %>%
+    mutate(n = ifelse(n == TRUE, "Within", "Without")) %>%
+    spread(n, nn) %>%
+    mutate(Percent = round(Within / (Within + Without) * 100, 2),
+           iter = run)
+  return(df)
+}
+
+## Calculates the sum of observations below dist_value1
+## for each group
+below_calc <- function(df, run, dist_value1 = 0.1) {
+  df <- df %>%
+    group_by(group1, group2) %>%
+    mutate(n = value < dist_value1) %>%
     group_by(group1, group2, n) %>%
     count() %>%
     ungroup() %>%
@@ -457,29 +521,13 @@ below_calc <- function(df, run, dist_value = 0.1) {
            iter = run)
   return(df)
 }
-    
-below_calc2 <- function(df, run, dist_value = 0.1) {
-  df <- df %>%
-    group_by(group1, group2) %>%
-    mutate(n = n()) %>%
-    sample_n(min(.$n)) %>%
-    select(-n) %>%
-    mutate(n = value < dist_value) %>%
-    group_by(group1, group2, n) %>%
-    count() %>%
-    ungroup() %>%
-    mutate(n = ifelse(n == TRUE, "Below", "Above")) %>%
-    spread(n, nn) %>%
-    mutate(Below = ifelse(is.na(Below) == TRUE, 0, Below)) %>%
-    mutate(Percent_below = round(Below / (Above + Below) * 100, 2),
-           iter = run)
-  return(df)
-}
 
-above_calc <- function(df, run, dist_value = 0.9) {
+## Calculates the sum of observations above dist_value1
+## for each group
+above_calc <- function(df, run, dist_value1 = 0.9) {
   df <- df %>%
     group_by(group1, group2) %>%
-    mutate(n = value > dist_value) %>%
+    mutate(n = value > dist_value1) %>%
     group_by(group1, group2, n) %>%
     count() %>%
     ungroup() %>%
@@ -491,24 +539,7 @@ above_calc <- function(df, run, dist_value = 0.9) {
   return(df)
 }
 
-above_calc2 <- function(df, run, dist_value = 0.9) {
-  df <- df %>%
-    group_by(group1, group2) %>%
-    mutate(n = n()) %>%
-    sample_n(min(.$n)) %>%
-    select(-n) %>%
-    mutate(n = value > dist_value) %>%
-    group_by(group1, group2, n) %>%
-    count() %>%
-    ungroup() %>%
-    mutate(n = ifelse(n == TRUE, "Above", "Below")) %>%
-    spread(n, nn) %>%
-    mutate(Above = ifelse(is.na(Above) == TRUE, 0, Above)) %>%
-    mutate(Percent_above = round(Above / (Above + Below) * 100, 2),
-           iter = run)
-  return(df)
-}
-
+## Calculates the mean of observations for each group
 mean_calc <- function(df, run) {
   df <- df %>%
     group_by(group1, group2) %>%
@@ -519,6 +550,7 @@ mean_calc <- function(df, run) {
            metric = as.numeric(metric))
 }
 
+## Calculates the median of observations for each group
 median_calc <- function(df, run) {
   df <- df %>%
     group_by(group1, group2) %>%
@@ -529,6 +561,7 @@ median_calc <- function(df, run) {
            metric = as.numeric(metric))
 }
 
+## Calculates the quantiles of the observations for each group
 quantile_calc <- function(df, run) {
   df <- df %>%
     group_by(group1, group2) %>%
@@ -544,37 +577,47 @@ quantile_calc <- function(df, run) {
     mutate(iter = run)
 }
 
+# Iteration function
+iterate_samples <- function(df, run, method = "mean", dist_value1, dist_value2) {
 
-iterate_samples <- function(df, run, method = "mean", dist_value) {
-
+  # randomize the value column, regardless of groups
   df <- df %>%
     mutate(value = sample(value))
-  
-    if (method == "mean") {
-      df <- mean_calc(df, run)
+
+  # run specified function
+  if (method == "mean") {
+    df <- mean_calc(df, run)
+    }
+
+  if (method == "below") {
+   df <- below_calc(df, run, dist_value1)
+    }
+
+  if (method == "above") {
+   df <- above_calc(df, run, dist_value1)
+    }
+
+  if (method == "within") {
+    df <- within(df, run, dist_value1, dist_value2)
+    }
+
+  if (method == "without") {
+    df <- without(df, run, dist_value1, dist_value2)
     }
   
-    if (method == "below") {
-     df <- below_calc2(df, run, dist_value)
+  if (method == "median") {
+    df <- median_calc(df, run)
     }
   
-    if (method == "above") {
-     df <- above_calc2(df, run, dist_value)
-    }
-    
-    if (method == "median") {
-      df <- median_calc(df, run)
-    }
-    
-    if (method == "quantile") {
-      df <- quantile_calc(df, run)
-    }
+  if (method == "quantile") {
+    df <- quantile_calc(df, run)
+  }
     
     return(df)
 }
 
 # run iterations on selected data frame
-run_iterations <- function(df, runs = 1000, seed = 10, method = "mean", dist_value) {
+run_iterations <- function(df, runs = 1000, seed = 10, method = "mean", dist_value1, dist_value2) {
   # set seed
   set.seed(seed)
   
@@ -582,26 +625,34 @@ run_iterations <- function(df, runs = 1000, seed = 10, method = "mean", dist_val
   output <- list()
   
   # create expected values
-    if (method == "mean") {
-      orig <- mean_calc(df, 0)
+  if (method == "mean") {
+    orig <- mean_calc(df, 0)
+    }
+
+  if (method == "below") {
+   orig <- below_calc(df, 0, dist_value1)
+    }
+
+  if (method == "above") {
+   orig <- above_calc(df, 0, dist_value1)
     }
   
-    if (method == "below") {
-     orig <- below_calc(df, 0, dist_value)
+  if (method == "within") {
+    orig <- within(df, 0, dist_value1, dist_value2)
     }
-  
-   if (method == "above") {
-     orig <- above_calc(df, 0, dist_value)
+
+  if (method == "without") {
+    orig <- without(df, 0, dist_value1, dist_value2)
     }
-    
-    if (method == "median") {
-      orig <- median_calc(df, 0)
+
+  if (method == "median") {
+    orig <- median_calc(df, 0)
     }
-  
-    if (method == "quantile") {
-      orig <- quantile_calc(df, 0)
-    }
-  
+
+  if (method == "quantile") {
+    orig <- quantile_calc(df, 0)
+  }
+
   output <- c(output, list(orig))
   
   # run iterations
@@ -609,205 +660,142 @@ run_iterations <- function(df, runs = 1000, seed = 10, method = "mean", dist_val
     result <- iterate_samples(df,
                               i,
                               method = method,
-                              dist_value = dist_value)
+                              dist_value1 = dist_value1,
+                              dist_value2 = dist_value2)
     output <- c(output, list(result))
-  }
+    }
   return(output)
 }
 
-# create distribution plots from iteration data
-create_plot <- function(df, group_one, column, exp_value, title, binwidth = 0.2) {
-  
-  df %>%
-    filter(group1 == group_one) %>%
-    ggplot(aes(!! sym(column))) +
-    geom_histogram(binwidth = 0.2, color = "black",
-                   fill = "grey80") +
-    geom_segment(aes(x = exp_value, xend = exp_value, y = 70, yend = 0),
-                 arrow = arrow(length = unit(0.5, "cm"))) +
-    annotate("text", x = exp_value, y = 75, label = "Expected value", angle = 90, size = 3, hjust = 0) +
-    ggtitle(title)
-}
-
 # Run functions
-complete_data_below <- run_iterations(run_df,
-                                runs = 1000,
-                                method = "below",
-                                dist_value = 0.1) %>%
-  bind_rows()
+summary_stats <- run_df %>%
+  mutate(total_mean = round(mean(value)*100, 3)) %>%
+  group_by(group1) %>%
+  mutate(mean = round(mean(value)*100, 3),
+         var = round(var(value)*100, 3)) %>%
+  select(group1, total_mean, mean, var) %>%
+  summarise_all(funs(func_paste))
 
+summary_stats2 <- run_df %>%
+  mutate(total_mean = round(mean(value), 3)) %>%
+  group_by(group1) %>%
+  mutate(mean = round(mean(value), 3),
+         var = round(var(value), 3)) %>%
+  select(group1, total_mean, mean, var) %>%
+  summarise_all(funs(func_paste))
 
-complete_data_above <- run_iterations(run_df,
+complete_data <- run_iterations(run_df,
                                 runs = 1000,
-                                method = "above",
-                                dist_value = 0.8) %>%
-  bind_rows()
+                                method = "without",
+                                dist_value1 = 0.1,
+                                dist_value2 = 0.8) %>%
+  bind_rows() %>%
+  mutate(Percent = as.numeric(Percent))
+
+lower_data <- run_iterations(run_df,
+                             runs = 1000,
+                             method = "below",
+                             dist_value1 = 0.1) %>%
+  bind_rows() %>%
+  mutate(Percent_below = as.numeric(Percent_below))
 
 # Plots
 
-p1 <- ggplot(complete_data_below, aes(Percent_below)) +
+ggplot(complete_data, aes(Percent)) +
   geom_histogram(aes(y = ..density..), binwidth = 0.2, color = "black",
                 fill = "grey80") +
   stat_function(fun = dnorm,
-                args = with(complete_data_below, c(mean = mean(Percent_below), sd = sd(Percent_below))),
+                args = with(complete_data, c(mean = mean(Percent), sd = sd(Percent))),
                 color = "red") +
-  geom_segment(aes(x = complete_data_below$Percent_below[1],
-                   xend = complete_data_below$Percent_below[1], y = 0.15, yend = 0),
-               arrow = arrow(length = unit(0.4, "cm"),
+  geom_segment(aes(x = complete_data$Percent[1],
+                   xend = complete_data$Percent[1], y = 0.08, yend = 0),
+               arrow = arrow(length = unit(0.3, "cm"),
                              type = "closed"),
                color = "#4575b4") +
-  geom_segment(aes(x = complete_data_below$Percent_below[2],
-                   xend = complete_data_below$Percent_below[2], y = 0.15, yend = 0),
-               arrow = arrow(length = unit(0.4, "cm"),
+  geom_segment(aes(x = complete_data$Percent[2],
+                   xend = complete_data$Percent[2], y = 0.08, yend = 0),
+               arrow = arrow(length = unit(0.3, "cm"),
                              type = "closed"),
                color = "#74add1") +
-  geom_segment(aes(x = complete_data_below$Percent_below[3],
-                   xend = complete_data_below$Percent_below[3], y = 0.15, yend = 0),
-               arrow = arrow(length = unit(0.4, "cm"),
+  geom_segment(aes(x = complete_data$Percent[3],
+                   xend = complete_data$Percent[3], y = 0.08, yend = 0),
+               arrow = arrow(length = unit(0.3, "cm"),
                              type = "closed"),
                color = "#f46d43") +
-  geom_segment(aes(x = complete_data_below$Percent_below[4],
-                   xend = complete_data_below$Percent_below[4], y = 0.15, yend = 0),
-               arrow = arrow(length = unit(0.4, "cm"),
+  geom_segment(aes(x = complete_data$Percent[4],
+                   xend = complete_data$Percent[4], y = 0.08, yend = 0),
+               arrow = arrow(length = unit(0.3, "cm"),
                              type = "closed"),
                color = "#fdae61") +
-  geom_vline(xintercept = mean(complete_data_below$Percent_below),
-             size = 1)
+  geom_text(label = "p < 0.001",
+            x = 83.30,
+            y = 0.16,
+            angle = 90) +
+  geom_vline(xintercept = as.numeric(summary_stats$mean[1]),
+             size = 1,
+             color = "#4575b4") +
+  geom_vline(xintercept = as.numeric(summary_stats$mean[2]),
+             size = 1,
+             color = "#74add1") +
+  geom_vline(xintercept = as.numeric(summary_stats$mean[3]),
+             size = 1,
+             color = "#f46d43") +
+  geom_vline(xintercept = as.numeric(summary_stats$mean[4]),
+             size = 1,
+             color = "#fdae61") +
+  labs(x = "Percent (%) distances < 0.1 or > 0.8",
+       y = "Density") +
+  ggtitle(label = "Distribution of percentages",
+          subtitle = "Number of iterations: 1000") +
+  theme(plot.title = element_text(hjust = 0))
 
 
-p2 <- ggplot(complete_data_above, aes(Percent_above)) +
+
+ggplot(lower_data, aes(Percent_below)) +
   geom_histogram(aes(y = ..density..), binwidth = 0.2, color = "black",
                 fill = "grey80") +
   stat_function(fun = dnorm,
-                args = with(complete_data_above, c(mean = mean(Percent_above), sd = sd(Percent_above))),
+                args = with(lower_data, c(mean = mean(Percent_below), sd = sd(Percent_below))),
                 color = "red") +
-  geom_segment(aes(x = complete_data_above$Percent_above[1],
-                   xend = complete_data_above$Percent_above[1], y = 0.15, yend = 0),
-               arrow = arrow(length = unit(0.4, "cm"),
+  geom_segment(aes(x = lower_data$Percent_below[1],
+                   xend = lower_data$Percent_below[1], y = 0.15, yend = 0),
+               arrow = arrow(length = unit(0.3, "cm"),
                              type = "closed"),
                color = "#4575b4") +
-  geom_segment(aes(x = complete_data_above$Percent_above[2],
-                   xend = complete_data_above$Percent_above[2], y = 0.15, yend = 0),
-               arrow = arrow(length = unit(0.4, "cm"),
+  geom_segment(aes(x = lower_data$Percent_below[2],
+                   xend = lower_data$Percent_below[2], y = 0.15, yend = 0),
+               arrow = arrow(length = unit(0.3, "cm"),
                              type = "closed"),
                color = "#74add1") +
-  geom_segment(aes(x = complete_data_above$Percent_above[3],
-                   xend = complete_data_above$Percent_above[3], y = 0.15, yend = 0),
-               arrow = arrow(length = unit(0.4, "cm"),
+  geom_segment(aes(x = lower_data$Percent_below[3],
+                   xend = lower_data$Percent_below[3], y = 0.15, yend = 0),
+               arrow = arrow(length = unit(0.3, "cm"),
                              type = "closed"),
                color = "#f46d43") +
-  geom_segment(aes(x = complete_data_above$Percent_above[4],
-                   xend = complete_data_above$Percent_above[4], y = 0.15, yend = 0),
-               arrow = arrow(length = unit(0.4, "cm"),
+  geom_segment(aes(x = lower_data$Percent_below[4],
+                   xend = lower_data$Percent_below[4], y = 0.15, yend = 0),
+               arrow = arrow(length = unit(0.3, "cm"),
                              type = "closed"),
                color = "#fdae61") +
-  geom_vline(xintercept = mean(complete_data_above$Percent_above),
-             size = 1)
+  geom_text(label = "p < 0.001",
+            x = 5.87,
+            y = 0.32,
+            angle = 90) +
+  geom_vline(xintercept = mean(lower_data$Percent_below),
+             size = 1) +
+  labs(x = "Percent (%) distances < 0.1",
+       y = "Density") +
+  ggtitle(label = "Distribution of Percentages",
+          subtitle = "Number of iterations: 1000") +
+  theme(plot.title = element_text(hjust = 0))
 
-plot_grid(p1, p2, ncol = 2, nrow = 1, align = "v")
-
-
-mean_data_below <- complete_data_below %>%
-  mutate(mean = mean(Percent_below),
-         dist_from_mean = mean - Percent_below)
-
-mp1 <- ggplot(mean_data_below, aes(dist_from_mean))+
-  geom_histogram(binwidth = 0.15,
-                 color = "black") +
-  geom_segment(aes(x = mean_data_below$dist_from_mean[1],
-                   xend = mean_data_below$dist_from_mean[1], y = 100, yend = 0),
-               arrow = arrow(length = unit(0.4, "cm"),
-                             type = "closed"),
-               color = "#4575b4") +
-  geom_segment(aes(x = mean_data_below$dist_from_mean[2],
-                   xend = mean_data_below$dist_from_mean[2], y = 100, yend = 0),
-               arrow = arrow(length = unit(0.4, "cm"),
-                             type = "closed"),
-               color = "#74add1") +
-  geom_segment(aes(x = mean_data_below$dist_from_mean[3],
-                   xend = mean_data_below$dist_from_mean[3], y = 100, yend = 0),
-               arrow = arrow(length = unit(0.4, "cm"),
-                             type = "closed"),
-               color = "#f46d43") +
-  geom_segment(aes(x = mean_data_below$dist_from_mean[4],
-                   xend = mean_data_below$dist_from_mean[4], y = 100, yend = 0),
-               arrow = arrow(length = unit(0.4, "cm"),
-                             type = "closed"),
-               color = "#fdae61")
-
-mean_data_above <- complete_data_above %>%
-  mutate(mean = mean(Percent_above),
-         dist_from_mean = mean - Percent_above)
-
-mp2 <- ggplot(mean_data_above, aes(dist_from_mean))+
-  geom_histogram(binwidth = 0.15,
-                 color = "black") +
-  geom_segment(aes(x = mean_data_above$dist_from_mean[1],
-                   xend = mean_data_above$dist_from_mean[1], y = 50, yend = 0),
-               arrow = arrow(length = unit(0.4, "cm"),
-                             type = "closed"),
-               color = "#4575b4") +
-  geom_segment(aes(x = mean_data_above$dist_from_mean[2],
-                   xend = mean_data_above$dist_from_mean[2], y = 50, yend = 0),
-               arrow = arrow(length = unit(0.4, "cm"),
-                             type = "closed"),
-               color = "#74add1") +
-  geom_segment(aes(x = mean_data_above$dist_from_mean[3],
-                   xend = mean_data_above$dist_from_mean[3], y = 50, yend = 0),
-               arrow = arrow(length = unit(0.4, "cm"),
-                             type = "closed"),
-               color = "#f46d43") +
-  geom_segment(aes(x = mean_data_above$dist_from_mean[4],
-                   xend = mean_data_above$dist_from_mean[4], y = 50, yend = 0),
-               arrow = arrow(length = unit(0.4, "cm"),
-                             type = "closed"),
-               color = "#fdae61")
-
-
-plot_grid(mp1, mp2, ncol = 2, nrow = 1, align = "v")
-
-chsq_data_below <- complete_data_below[1:4,] %>%
-  mutate(Total = Above + Below)
-
-br_pi_csq <- chsq_data_below[1:2,] %>%
-  select(Total, Below) %>%
-  as.matrix
-
-br_rf_csq <- chsq_data_below[c(1,3),] %>%
-  select(Total, Below) %>%
-  as.matrix
-
-br_wb_csq <- chsq_data_below[c(1,4),] %>%
-  select(Total, Below) %>%
-  as.matrix
-
-pi_rf_csq <- chsq_data_below[c(2,3),] %>%
-  select(Total, Below) %>%
-  as.matrix
-
-pi_wb_csq <- chsq_data_below[c(2,4),] %>%
-  select(Total, Below) %>%
-  as.matrix
-
-rf_wb_csq <- chsq_data_below[c(3,4),] %>%
-  select(Total, Below) %>%
-  as.matrix
-
-chisq.test(br_pi_csq, correct = FALSE)
-chisq.test(br_rf_csq, correct = FALSE)
-chisq.test(br_wb_csq, correct = FALSE)
-chisq.test(pi_rf_csq, correct = FALSE)
-chisq.test(pi_wb_csq, correct = FALSE)
-chisq.test(rf_wb_csq, correct = FALSE)
-
-
-
-
-
+summary_stats2
 
 ```
 
 
+# References
+[1] Alikhan N-F, Zhou Z, Sergeant MJ, Achtman M. A genomic overview of the population structure of Salmonella. Casadesús J, editor. PLOS Genet [Internet]. 2018 Apr 5;14(4):e1007261. Available from: https://dx.plos.org/10.1371/journal.pgen.1007261
 
-
+[2] Machado MP, Silva M, Carriço JA, Silva DN, Santos S, Ramirez M, et al. chewBBACA: A complete suite for gene-by-gene schema creation and strain identification. Microb Genomics. 2018;1–7.
 
