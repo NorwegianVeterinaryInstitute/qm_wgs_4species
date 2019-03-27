@@ -4,10 +4,12 @@
 Github page for WGS article
 
 ## Quality control
-[Fastqc-analysis on raw reads](/notebooks/fastqc_analysis.html)
+[FastQC analysis results](/notebooks/fastqc_analysis.html)
+[Mash screen results](/notebooks/mash_analysis.html)
+[QUAST assembly quality results](/notebooks/assembly_metrics.html)
 
-## Data notebook
-[Main analysis notebook](/notebooks/article_notebook.html)
+## Data
+[Figures and tables](/notebooks/article_notebook2.html)
 
-## ASM 2018 Conference Poster - Data Analysis
-[ASM Poster Notebook](/notebooks/poster_analysis.html)
+## Clustering analysis
+[cgMLST clustering in R](/notebooks/Clustering_analysis.html)
