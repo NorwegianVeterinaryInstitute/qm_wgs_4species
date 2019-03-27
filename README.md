@@ -5,7 +5,9 @@ Github page for WGS article
 
 ## Quality control
 [FastQC analysis results](/notebooks/fastqc_analysis.html)
+
 [Mash screen results](/notebooks/mash_analysis.html)
+
 [QUAST assembly quality results](/notebooks/assembly_metrics.html)
 
 ## Data
