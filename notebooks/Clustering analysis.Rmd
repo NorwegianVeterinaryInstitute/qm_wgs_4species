@@ -669,14 +669,6 @@ run_iterations <- function(df, runs = 1000, seed = 10, method = "mean", dist_val
 
 # Run functions
 summary_stats <- run_df %>%
-  mutate(total_mean = round(mean(value)*100, 3)) %>%
-  group_by(group1) %>%
-  mutate(mean = round(mean(value)*100, 3),
-         var = round(var(value)*100, 3)) %>%
-  select(group1, total_mean, mean, var) %>%
-  summarise_all(funs(func_paste))
-
-summary_stats2 <- run_df %>%
   mutate(total_mean = round(mean(value), 3)) %>%
   group_by(group1) %>%
   mutate(mean = round(mean(value), 3),
@@ -698,6 +690,8 @@ lower_data <- run_iterations(run_df,
                              dist_value1 = 0.1) %>%
   bind_rows() %>%
   mutate(Percent_below = as.numeric(Percent_below))
+
+summary_stats
 
 # Plots
 
@@ -731,18 +725,6 @@ ggplot(complete_data, aes(Percent)) +
             x = 83.30,
             y = 0.16,
             angle = 90) +
-  geom_vline(xintercept = as.numeric(summary_stats$mean[1]),
-             size = 1,
-             color = "#4575b4") +
-  geom_vline(xintercept = as.numeric(summary_stats$mean[2]),
-             size = 1,
-             color = "#74add1") +
-  geom_vline(xintercept = as.numeric(summary_stats$mean[3]),
-             size = 1,
-             color = "#f46d43") +
-  geom_vline(xintercept = as.numeric(summary_stats$mean[4]),
-             size = 1,
-             color = "#fdae61") +
   labs(x = "Percent (%) distances < 0.1 or > 0.8",
        y = "Density") +
   ggtitle(label = "Distribution of percentages",
@@ -788,8 +770,6 @@ ggplot(lower_data, aes(Percent_below)) +
   ggtitle(label = "Distribution of Percentages",
           subtitle = "Number of iterations: 1000") +
   theme(plot.title = element_text(hjust = 0))
-
-summary_stats2
 
 ```
 
