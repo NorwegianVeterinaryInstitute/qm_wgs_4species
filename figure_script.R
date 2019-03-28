@@ -298,7 +298,7 @@ ggsave(
      position = position_dodge(1)
    ) +
    scale_fill_manual(values = palette) +
-   scale_x_discrete(labels = c("GyrA","GyrB","ParC","ParE",
+   scale_x_discrete(limits = c("GyrA","GyrB","ParC","ParE",
                                "MarA","MarR","SoxR","RpoB",
                                "RobA")) +
    labs(y = "Percent (%) of isolates") +
