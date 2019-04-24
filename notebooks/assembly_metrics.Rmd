@@ -36,8 +36,7 @@ isolate_data <- read.table("../data/isolate_data.txt",
   filter(id %not_in% c("2016-17-565-1-S",
                        "2016-02-428-2-S",
                        "2016-02-486-2-S",
-                       "2016-02-732-2-S",
-                       "2014-01-1741-1-S"))
+                       "2016-02-732-2-S"))
 
 ```
 
@@ -105,8 +104,7 @@ df_clean <- create_df(df) %>%
   filter(Assembly %not_in% c("51-2016-02-486_S31_pilon_spades",
                              "68-2016-17-565_S45_pilon_spades",
                              "52-2016-02-732_S43_pilon_spades",
-                             "50-2016-02-428_S19_pilon_spades",
-                             "4-2014-01-1741_TAAGGCGA-ACTGCATA_pilon_spades")) %>%
+                             "50-2016-02-428_S19_pilon_spades")) %>%
   mutate(ref = Assembly %>%
            gsub("_pilon_spades", "", .)) %>%
   left_join(id_data, by = "ref") %>%
@@ -142,31 +140,33 @@ embed_data <- function(x = mtcars, filename = "file.csv", label= "Get data") {
 
 # Mean metrics
 ```{r}
-print(paste0("Mean number of contigs: ", round(mean(metrics2$no_of_contigs), 1)))
-print(paste0("Mean size of largest contigs: ", round(mean(metrics2$largest_contig), 1)))
-print(paste0("Mean N50: ", round(mean(metrics2$N50), 1)))
-print(paste0("Mean NG50: ", round(mean(as.numeric(metrics2$NG50)), 1)))
+metrics3 <- filter(metrics2, id != "2014-01-1741-1-S")
+
+print(paste0("Mean number of contigs: ", round(mean(metrics3$no_of_contigs), 1)))
+print(paste0("Mean size of largest contigs: ", round(mean(metrics3$largest_contig), 1)))
+print(paste0("Mean N50: ", round(mean(metrics3$N50), 1)))
+print(paste0("Mean NG50: ", round(mean(as.numeric(metrics3$NG50)), 1)))
 
 ```
 
 # Summarised assembly stats
 ## Summary stats per animal species
 ```{r}
-p1 <- ggplot(metrics2, aes(species, N50)) +
+p1 <- ggplot(metrics3, aes(species, N50)) +
   stat_boxplot(geom = "errorbar", width = 0.4) +
   geom_boxplot() +
   scale_y_continuous(labels = comma) +
   theme(axis.title.x = element_blank(),
         axis.text.x = element_text(size = 8))
 
-p2 <- ggplot(metrics2, aes(species, no_of_contigs)) +
+p2 <- ggplot(metrics3, aes(species, no_of_contigs)) +
   stat_boxplot(geom = "errorbar", width = 0.4) +
   geom_boxplot() +
   labs(y = "No. of contigs") +
   theme(axis.title.x = element_blank(),
         axis.text.x = element_text(size = 8))
 
-p3 <- ggplot(metrics2, aes(species, largest_contig)) +
+p3 <- ggplot(metrics3, aes(species, largest_contig)) +
   stat_boxplot(geom = "errorbar", width = 0.4) +
   geom_boxplot() +
   labs(y = "Largest contig") +
@@ -174,7 +174,7 @@ p3 <- ggplot(metrics2, aes(species, largest_contig)) +
   theme(axis.title.x = element_blank(),
         axis.text.x = element_text(size = 8))
 
-p4 <- ggplot(metrics2, aes(species, as.numeric(no_of_misassemblies))) +
+p4 <- ggplot(metrics3, aes(species, as.numeric(no_of_misassemblies))) +
   stat_boxplot(geom = "errorbar", width = 0.4) +
   geom_boxplot() +
   labs(y = "No. of misassemblies") +
@@ -187,21 +187,21 @@ plot_grid(p1, p2, p3, p4, ncol = 2, nrow = 2, align = "v")
 
 ## Summary stats per sequencing method
 ```{r}
-p5 <- ggplot(metrics2, aes(sequencer, N50)) +
+p5 <- ggplot(metrics3, aes(sequencer, N50)) +
   stat_boxplot(geom = "errorbar", width = 0.4) +
   geom_boxplot() +
   scale_y_continuous(labels = comma) +
   theme(axis.title.x = element_blank(),
         axis.text.x = element_text(size = 8))
 
-p6 <- ggplot(metrics2, aes(sequencer, no_of_contigs)) +
+p6 <- ggplot(metrics3, aes(sequencer, no_of_contigs)) +
   stat_boxplot(geom = "errorbar", width = 0.4) +
   geom_boxplot() +
   labs(y = "No. of contigs") +
   theme(axis.title.x = element_blank(),
         axis.text.x = element_text(size = 8))
 
-p7 <- ggplot(metrics2, aes(sequencer, largest_contig)) +
+p7 <- ggplot(metrics3, aes(sequencer, largest_contig)) +
   stat_boxplot(geom = "errorbar", width = 0.4) +
   geom_boxplot() +
   labs(y = "Largest contig") +
@@ -209,7 +209,7 @@ p7 <- ggplot(metrics2, aes(sequencer, largest_contig)) +
   theme(axis.title.x = element_blank(),
         axis.text.x = element_text(size = 8))
 
-p8 <- ggplot(metrics2, aes(sequencer, as.numeric(no_of_misassemblies))) +
+p8 <- ggplot(metrics3, aes(sequencer, as.numeric(no_of_misassemblies))) +
   stat_boxplot(geom = "errorbar", width = 0.4) +
   geom_boxplot() +
   labs(y = "No. of misassemblies") +
