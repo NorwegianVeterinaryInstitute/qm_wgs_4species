@@ -1,5 +1,5 @@
 # Closely related quinolone resistant Escherichia coli in different animal species in Norway – part of the normal flora or dissemination events?
-## Supplementary material
+Supplementary material
 
 ## Information
 Supplementary material for the article is listed below.
