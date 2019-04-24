@@ -2,7 +2,12 @@
 
 ## Information
 Supplementary material for the article is listed below.
+
 [Download metadata table in excel format](total_data.xlsx)
+
+[Additional Tables](/notebooks/article_notebook2.html)
+
+[cgMLST clustering](/notebooks/Clustering_analysis.html)
 
 ## R scripts
 [ARIBA results analysis script](/scripts/ARIBA_analysis.R)
@@ -15,11 +20,6 @@ Supplementary material for the article is listed below.
 [Mash screen results](/notebooks/mash_analysis.html)
 
 [QUAST results](/notebooks/assembly_metrics.html)
-
-## Analyses
-[Additional Tables](/notebooks/article_notebook2.html)
-
-[cgMLST clustering](/notebooks/Clustering_analysis.html)
 
 ## Reference sequences
 
