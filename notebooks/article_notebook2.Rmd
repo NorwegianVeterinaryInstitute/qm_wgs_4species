@@ -174,3 +174,15 @@ mut_table_fixed %>%
   kable_styling(bootstrap_options = c("striped", "hover"))
 ```
 
+# Substitutions in GyrB outside QRDR
+```{r}
+mut_filtered %>%
+  filter(gene == "gyrB") %>%
+  group_by(mut) %>%
+  count() %>%
+  filter(mut != "0") %>%
+  dplyr::rename("AA Substitution" = mut) %>%
+  kable() %>%
+  kable_styling(bootstrap_options = c("striped", "hover"))
+```
+
