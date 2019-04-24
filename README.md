@@ -1,7 +1,8 @@
-# Comparative genomics of whole genome sequenced E. coli isolates from four different animal species
+# Closely related quinolone resistant Escherichia coli in different animal species in Norway – part of the normal flora or dissemination events?
+## Supplementary material
 
 ## Information
-Github page for WGS article
+Supplementary material for the article is listed below.
 
 ## R scripts
 [ARIBA results analysis script](/scripts/ARIBA_analysis.R)
@@ -15,7 +16,7 @@ Github page for WGS article
 
 [QUAST results](/notebooks/assembly_metrics.html)
 
-## Additional Information
+## Analyses
 [Additional Tables](/notebooks/article_notebook2.html)
 
 [cgMLST clustering](/notebooks/Clustering_analysis.html)
