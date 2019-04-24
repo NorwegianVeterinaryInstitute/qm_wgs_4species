@@ -24,6 +24,9 @@ Supplementary material for the article is listed below.
 ## Reference sequences
 
 ### QRDR determination of GyrB, ParC and ParE
+The K12 reference sequence on the whole protein is listed as the first entry in each file.
+The rest of the fasta entries are taken from Jiménez Gómez et al. 2004.
+
 [E. coli K12 GyrB QRDR](/reference_genes/gyrB_QRDR_ref.fasta)
 
 [E. coli K12 ParC QRDR](/reference_genes/parC_QRDR_ref.fasta)
