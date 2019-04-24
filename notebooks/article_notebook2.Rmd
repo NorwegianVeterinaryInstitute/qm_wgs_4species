@@ -19,8 +19,7 @@ output:
       toc_depth: '3'
 ---
 
-# Libraries
-```{r load libraries, message=FALSE, warning=FALSE}
+```{r include=FALSE}
 # Libraries
 library(dplyr)
 library(tidyr)
@@ -105,14 +104,11 @@ mlst_data <- read.table("../data/mlst_results.txt",
                         stringsAsFactors = F)
 ```
 
-```{r message=FALSE}
+```{r include=FALSE}
 source("../scripts/ARIBA_analysis.R")
-
 ```
 
-# Tables
-
-## Group listing
+# Group listing
 This table presents the groups created in the isolate selection. The "Additional Resistances" column contains how many additional antimicrobials the isolates in that group is resistant to, other than CIP and/or NAL.
 ```{r}
 mic_data %>%
@@ -126,7 +122,7 @@ mic_data %>%
   kable_styling(bootstrap_options = c("striped","hover"))
 ```
 
-## Mechanisms in isolates without substitutions in QRDR
+# Mechanisms in isolates without substitutions in QRDR
 This table presents the mechanisms identified in isolates with no amino acid substitutions in either of GyrA, GyrB, ParC and/or ParE.
 ```{r}
 specific_ac_genes <- acquired_report %>%
@@ -149,7 +145,7 @@ mut_report %>%
   kable_styling(bootstrap_options = c("striped", "hover"))
 ```
 
-## Substitutions in intrinsic genes for isolates with CIP MIC < 0.12
+# Substitutions in intrinsic genes for isolates with CIP MIC < 0.12
 This table presents the substitutions identified in isolates with a MIC-value for ciprofloxacin below the ECOFF. Note that all substitutions in all genes are listed here, not just the QRDR-located ones. 
 ```{r}
 cip_mic_sens <- mic_data %>%
