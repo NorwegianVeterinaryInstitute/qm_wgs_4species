@@ -2,6 +2,7 @@
 
 ## Information
 Supplementary material for the article is listed below.
+[Download metadata table in excel format](total_data.xlsx)
 
 ## R scripts
 [ARIBA results analysis script](/scripts/ARIBA_analysis.R)
