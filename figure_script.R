@@ -43,7 +43,7 @@ total_tree_annotated <- ggtree(total_tree,
 total_tree_opened <- rotate_tree(open_tree(total_tree_annotated, 8), 93)
 
 ggsave(
-  "C:/Users/vi1511/OneDrive - Veterinærinstituttet/Artikler/qrec_wgs/figures/total_dendrogram.tiff",
+  "C:/Users/vi1511.VETINST/OneDrive - Veterinærinstituttet/Artikler/qrec_wgs/figures/total_dendrogram.tiff",
   gheatmap(
     total_tree_opened,
     tree_heatmap_data,
@@ -77,7 +77,11 @@ ggsave(
 
 metadata_species <- read.table("data/chewbbaca/complete_results/metadata_species_specific_trees.txt",
                                sep = "\t",
-                               header = TRUE)
+                               header = TRUE) %>%
+  select(gyrA, parC, parE, PMQR) %>%
+  dplyr::rename("GyrA" = gyrA,
+                "ParC" = parC,
+                "ParE" = parE)
 
 palette3 <- c("0" = "grey95",
               # gyrA
@@ -102,139 +106,99 @@ palette3 <- c("0" = "grey95",
               "H516Y" = "#d94801",
               "L488M, A512T" = "#8c2d04",
               # PMQR
-              "qnrA1" = "#762a83",
-              "qnrB19" = "#ef8a62",
-              "qnrS1" = "#a6dba0",
-              "qnrS2" = "#5aae61",
-              "qnrS4" = "#1b7837",
-              "qepA4" = "#80cdc1",
-              # num
-              "1" = "#440154FF",
-              "2" = "#3B528BFF",
-              "3" = "#21908CFF",
-              "4" = "#5DC863FF",
-              "5" = "#FDE725FF")
+              "qnrA1" = "#dadaeb",
+              "qnrB19" = "#bcbddc",
+              "qnrS1" = "#9e9ac8",
+              "qnrS2" = "#807dba",
+              "qnrS4" = "#6a51a3",
+              "qepA4" = "#4a1486")
 
 # Broiler tree
-broiler_cgMLST <- read.table("data/chewbbaca/complete_results/broiler_cgmlst.txt",
-                             sep = "\t",
-                             header = TRUE,
-                             colClasses = "factor")
 
-broiler_tree <- as.phylo(hclust(daisy(broiler_cgMLST, metric = "gower"), method = "average"))
+broiler_tree <- calc_tree("data/chewbbaca/complete_results/cgMLST_broiler.tsv")
 
 broiler_tree_annotated <- ggtree(broiler_tree,
                                  layout = "circular",
                                  color = "#808080",
                                  size = 0.5) %<+% tree_metadata +
-  geom_tippoint(color = "#4575b4",
-                size = 1) +
+  geom_tippoint(color = "#808080",
+                size = 1.5) +
   geom_tiplab2(aes(label = ST),
-               offset = 0.03,
-               size = 1.6)
+               offset = 0.02,
+               size = 2)
 
-broiler_tree_opened <- rotate_tree(open_tree(broiler_tree_annotated, 12), 93.5)
-
-broiler_complete <- gheatmap(broiler_tree_opened,
+broiler_complete <- gheatmap(broiler_tree_annotated,
                              metadata_species,
-                             offset = 0.12,
-                             width = 0.9,
-                             colnames_offset_y = 0.9,
-                             colnames_position = "top",
-                             font.size = 2.5) +
+                             offset = 0.1,
+                             width = 0.5,
+                             colnames = FALSE) +
   scale_fill_manual(values = palette3) +
   guides(fill = FALSE)
 
 # Pig tree
-pig_cgMLST <- read.table("data/chewbbaca/complete_results/pig_cgmlst.txt",
-                         sep = "\t",
-                         header = TRUE,
-                         colClasses = "factor")
-
-pig_tree <- as.phylo(hclust(daisy(pig_cgMLST, metric = "gower"), method = "average"))
+pig_tree <- calc_tree("data/chewbbaca/complete_results/cgMLST_pig.tsv")
 
 pig_tree_annotated <- ggtree(pig_tree,
                              layout = "circular",
                              color = "#808080",
                              size = 0.5) %<+% tree_metadata +
-  geom_tippoint(color = "#74add1",
-                size = 1.3) +
+  geom_tippoint(color = "#808080",
+                size = 1.5) +
   geom_tiplab2(aes(label = ST),
-               offset = 0.03,
+               offset = 0.02,
                size = 2)
 
-pig_tree_opened <- rotate_tree(open_tree(pig_tree_annotated, 12), 94)
-
-pig_complete <- gheatmap(pig_tree_opened,
+pig_complete <- gheatmap(pig_tree_annotated,
                          metadata_species,
-                         offset = 0.14,
-                         width = 0.9,
-                         colnames_offset_y = 0.69,
-                         colnames_position = "top",
-                         font.size = 2.5) +
+                         offset = 0.09,
+                         width = 0.5,
+                         colnames = FALSE) +
   scale_fill_manual(values = palette3) +
   guides(fill = FALSE)
 
 # Red fox tree
-fox_cgMLST <- read.table("data/chewbbaca/complete_results/fox_cgmlst.txt",
-                         sep = "\t",
-                         header = TRUE,
-                         colClasses = "factor")
-
-fox_tree <- as.phylo(hclust(daisy(fox_cgMLST, metric = "gower"), method = "average"))
+fox_tree <- calc_tree("data/chewbbaca/complete_results/cgMLST_fox.tsv")
 
 fox_tree_annotated <- ggtree(fox_tree,
                              layout = "circular",
                              color = "#808080",
                              size = 0.5) %<+% tree_metadata +
-  geom_tippoint(color = "#f46d43",
+  geom_tippoint(color = "#808080",
                 size = 1.5) +
   geom_tiplab2(aes(label = ST),
-               offset = 0.03,
+               offset = 0.02,
                size = 2)
 
-fox_tree_opened <- rotate_tree(open_tree(fox_tree_annotated, 12), 93.5)
-
-fox_complete <- gheatmap(fox_tree_opened,
+fox_complete <- gheatmap(fox_tree_annotated,
                          metadata_species,
-                         offset = 0.15,
-                         width = 0.9,
-                         colnames_offset_y = 0.34,
-                         colnames_position = "top",
-                         font.size = 2.5) +
+                         offset = 0.09,
+                         width = 0.5,
+                         colnames = FALSE) +
   scale_fill_manual(values = palette3) +
   guides(fill = FALSE)
 
 # Wild bird tree
-bird_cgMLST <- read.table("data/chewbbaca/complete_results/bird_cgmlst.txt",
-                          sep = "\t",
-                          header = TRUE,
-                          colClasses = "factor")
-
-bird_tree <- as.phylo(hclust(daisy(bird_cgMLST, metric = "gower"), method = "average"))
+bird_tree <- calc_tree("data/chewbbaca/complete_results/cgMLST_bird.tsv")
 
 bird_tree_annotated <- ggtree(bird_tree,
                               layout = "circular",
                               color = "#808080",
                               size = 0.5) %<+% tree_metadata +
-  geom_tippoint(color = "#fdae61",
+  geom_tippoint(color = "#808080",
                 size = 1.5) +
   geom_tiplab2(aes(label = ST),
-               offset = 0.03,
+               offset = 0.02,
                size = 2)
 
-bird_tree_opened <- rotate_tree(open_tree(bird_tree_annotated, 12), 93.5)
-
-bird_complete <- gheatmap(bird_tree_opened,
+bird_complete <- gheatmap(bird_tree_annotated,
                           metadata_species,
-                          offset = 0.15,
-                          width = 0.9,
-                          colnames_offset_y = 0.54,
-                          colnames_position = "top",
-                          font.size = 2.5) +
+                          offset = 0.09,
+                          width = 0.5,
+                          colnames = FALSE) +
   scale_fill_manual(values = palette3) +
   guides(fill = FALSE)
 
+# Total plot
 tot_plot <- plot_grid(broiler_complete,
                       pig_complete,
                       fox_complete,
@@ -243,9 +207,8 @@ tot_plot <- plot_grid(broiler_complete,
                       ncol = 2,
                       align = "h",
                       labels = c("Broiler","Pig","Red fox","Wild bird"))
-
 ggsave(
-  "C:/Users/vi1511/OneDrive - Veterinærinstituttet/Artikler/qrec_wgs/figures/species_dendrogram.tiff",
+  "C:/Users/vi1511.VETINST/OneDrive - Veterinærinstituttet/Artikler/qrec_wgs/figures/test.tiff",
   tot_plot,
   device = "tiff",
   dpi = 600,
@@ -268,8 +231,9 @@ palette <- c("Broiler" = "#4575b4",
              "Wild bird" = "#fdae61")
 
 ggsave(
- "C:/Users/vi1511/OneDrive - Veterinærinstituttet/Artikler/qrec_wgs/figures/res_per_species.tiff",
- mut_report %>%
+ "C:/Users/vi1511.VETINST/OneDrive - Veterinærinstituttet/Artikler/qrec_wgs/figures/res_per_species.tiff",
+  mut_report %>%
+   filter(id %not_in% ex_samples) %>%
    left_join(isolate_data, by = "id") %>%
    gather(key, value, gene_names) %>%
    group_by(key, value, species) %>%
@@ -399,7 +363,8 @@ AddCol <- function(df, col_name) {
 total_df <- acquired_report %>%
   left_join(mut_quant[c("gyrA","gyrB","parC","parE","id")], by = "id") %>%
   left_join(mut_report[c("id","marR","marA","rpoB","soxR","robA")], by = "id") %>%
-  left_join(isolate_data[c("id", "species")])
+  left_join(isolate_data[c("id", "species")]) %>%
+  filter(id %not_in% ex_samples)
 
 names(total_df) <- c("id","qepA4","qnrA1","qnrB19",
                      "qnrB6","qnrB60","qnrS1","qnrS2",
@@ -509,7 +474,7 @@ p2g <- ggplotGrob(p2)
 g <- cbind(p1g, p2g, size = "first")
 
 ggsave(
-  "C:/Users/vi1511/OneDrive - Veterinærinstituttet/Artikler/qrec_wgs/figures/mechanisms_per_species_mic.tiff",
+  "C:/Users/vi1511.VETINST/OneDrive - Veterinærinstituttet/Artikler/qrec_wgs/figures/mechanisms_per_species_mic.tiff",
   grid.arrange(g),
   device = "tiff",
   units = "cm",
