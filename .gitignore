@@ -2,7 +2,6 @@
 *.Rproj
 .Rhistory
 .Rproj.user/
-*.xlsx
 data/
 fix_id.R
 *.tiff
