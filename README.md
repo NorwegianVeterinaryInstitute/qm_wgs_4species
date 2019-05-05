@@ -1,1 +1,39 @@
-# qm_wgs_4species
+# Closely related quinolone resistant Escherichia coli in different animal species in Norway – part of the normal flora or dissemination events?
+
+## Information
+Supplementary material for the article is listed below.
+
+[Download metadata table in excel format](total_data.xlsx)
+
+[Additional Tables](/notebooks/article_notebook2.html)
+
+[cgMLST clustering](/notebooks/Clustering_analysis.html)
+
+## R scripts
+[ARIBA results analysis script](/scripts/ARIBA_analysis.R)
+
+[Prokka sequence analysis script](/scripts/prokka_check.R)
+
+## Quality control
+[FastQC analysis results](/notebooks/fastqc_analysis.html)
+
+[Mash screen results](/notebooks/mash_analysis.html)
+
+[QUAST results](/notebooks/assembly_metrics.html)
+
+## Reference sequences
+
+### QRDR determination of GyrB, ParC and ParE
+The K12 reference sequence on the whole protein is listed as the first entry in each file.
+The rest of the fasta entries are taken from Jiménez Gómez et al. 2004.
+
+[E. coli K12 GyrB QRDR](/reference_genes/gyrB_QRDR_ref.fasta)
+
+[E. coli K12 ParC QRDR](/reference_genes/parC_QRDR_ref.fasta)
+
+[E. coli K12 ParE QRDR](/reference_genes/parE_QRDR_ref.fasta)
+
+### MegaRes and ResFinder reference sequences
+[MegaRes - Intrinsic genes references](/reference_genes/total_megares_references.fa)
+
+[ResFinder - Acquired genes references](/reference_genes/total_resfinder_references.fa)
