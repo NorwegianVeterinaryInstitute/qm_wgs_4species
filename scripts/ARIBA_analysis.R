@@ -6,8 +6,8 @@ library(tibble)
 library(purrr)
 
 # Report directories
-megares_report_loc <- "../data/ariba/megares_results"
-resfinder_report_loc <- "../data/ariba/resfinder_results"
+megares_report_loc <- "../data/ariba/megares_results/"
+resfinder_report_loc <- "../data/ariba/resfinder_results/"
 
 # Genes of interest. These genes are partially matched to 
 # the generated gene names from the "fix_gene_names" function
