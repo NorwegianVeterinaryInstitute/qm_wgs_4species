@@ -134,7 +134,8 @@ include_graphics("../figures/GrapeTree_cgMLST.png")
 ```
 
 # Allele distance distribution
-```{r}
+Basic statistics are presented in the table.
+```{r, message=FALSE, warning=FALSE}
 # calculates distances from cgMLST data and returns
 # the lower triangular of the matrix, with (diag = FALSE)
 # or without (diag = TRUE) the diagonal
@@ -237,11 +238,7 @@ plot(x4,
      xlab = "Distance",
      ylim = c(0, 50))
 
-```
 
-# Distribution of iterated distances
-Distribution of percentages of distances < 0.1 or > 0.8. The distribution is based on 1000 iterations of the distance data. Observed values are denoted as arrows for each animal species; dark blue = Broiler, light blue = Pig, red = Red fox, yellow = Wild bird. The mean value is denoted as a vertical black line.
-```{r, warning=FALSE, message=FALSE, dpi=300}
 # generate data frame from allele data
 alleles <- cgMLST_allele_data %>%
   left_join(isolate_data[,c("id","species")], by = "id") %>%
@@ -268,6 +265,18 @@ run_df <- lower_tri_dist_calc(alleles, data_frame = TRUE) %>%
          group1 == group2) %>%
   arrange(group1, group2)
 
+run_df %>%
+  mutate(total_mean = round(mean(value), 3)) %>%
+  group_by(group1) %>%
+  mutate(mean = round(mean(value), 3),
+         var = round(var(value), 3)) %>%
+  select(group1, total_mean, mean, var) %>%
+  summarise_all(funs(func_paste))
+```
+
+# Distribution of iterated distances
+Distribution of percentages of distances < 0.1 or > 0.8. The distribution is based on 1000 iterations of the distance data. Observed values are denoted as arrows for each animal species; dark blue = Broiler, light blue = Pig, red = Red fox, yellow = Wild bird. The mean value is denoted as a vertical black line.
+```{r, warning=FALSE, message=FALSE, dpi=300}
 # functions used in iteration analyses
 
 ## Calculates the sum of observations lower than dist_value1 and
@@ -466,13 +475,6 @@ run_iterations <- function(df, runs = 1000, seed = 10, method = "mean", dist_val
 }
 
 # Run functions
-summary_stats <- run_df %>%
-  mutate(total_mean = round(mean(value), 3)) %>%
-  group_by(group1) %>%
-  mutate(mean = round(mean(value), 3),
-         var = round(var(value), 3)) %>%
-  select(group1, total_mean, mean, var) %>%
-  summarise_all(funs(func_paste))
 
 complete_data <- run_iterations(run_df,
                                 runs = 1000,
@@ -489,7 +491,6 @@ lower_data <- run_iterations(run_df,
   bind_rows() %>%
   mutate(Percent_below = as.numeric(Percent_below))
 
-summary_stats
 
 # Plots
 
