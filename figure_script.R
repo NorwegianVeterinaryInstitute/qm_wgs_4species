@@ -1,5 +1,13 @@
 ## Script for generating figures for the article
 
+library(ggplot2)
+library(dplyr)
+library(ggtree)
+library(tibble)
+library(vegan)
+library(cluster)
+library(ape)
+
 ## Total dendrogram
 cgMLST_data <- read.table("data/chewbbaca/complete_results/clean_cgMLST_data.txt",
                           sep = "\t",
@@ -15,10 +23,8 @@ tree_metadata <- read.table("data/chewbbaca/complete_results/tree_metadata.txt",
 
 tree_heatmap_data <- read.table("data/chewbbaca/complete_results/tree_heatmap_data.txt",
                                 sep = "\t",
-                                header = TRUE) %>%
-  select(-gadX)
+                                header = TRUE)
 
-names(tree_heatmap_data) <- c("GyrA","ParC","ParE","RpoB","MarA","MarR","SoxR","qepA4","qnr")
 
 palette <- c("Broiler" = "#4575b4",
              "Pig" = "#74add1",
@@ -37,34 +43,39 @@ total_tree_annotated <- ggtree(total_tree,
                 size = 1.5) +
   geom_tiplab2(aes(label = ST),
                offset = 0.01,
-               size = 2.5) +
+               size = 2.1) +
   scale_color_manual(values = palette)
 
-total_tree_opened <- rotate_tree(open_tree(total_tree_annotated, 8), 93)
+total_tree_opened <- rotate_tree(open_tree(total_tree_annotated, 8), 94)
+
+total_tree_heatmap <- gheatmap(
+  total_tree_opened,
+  tree_heatmap_data,
+  offset = 0.04,
+  width = 0.3,
+  colnames_offset_y = 2.5,
+  colnames_position = "top",
+  font.size = 3
+) +
+  scale_fill_manual(
+    values = palette2,
+    labels = c(
+      "Gene/Mutation absent",
+      "Acquired gene present",
+      "Intrinsic gene mutated"
+    )
+  ) +
+  theme(
+    legend.position = c(0.9, 0.9),
+    legend.text = element_text(size = 10)
+  ) +
+  
+  guides(colour = guide_legend(override.aes = list(size=5)))
+
 
 ggsave(
   "C:/Users/vi1511.VETINST/OneDrive - Veterinærinstituttet/Artikler/qrec_wgs/figures/total_dendrogram.tiff",
-  gheatmap(
-    total_tree_opened,
-    tree_heatmap_data,
-    offset = 0.04,
-    width = 0.3,
-    colnames_offset_y = 2.5,
-    colnames_position = "top",
-    font.size = 3
-  ) +
-    scale_fill_manual(
-      values = palette2,
-      labels = c(
-        "Gene/Mutation absent",
-        "Acquired gene present",
-        "Intrinsic gene mutated"
-      )
-    ) +
-    theme(
-      legend.position = c(0.9, 0.9),
-      legend.text = element_text(size = 10)
-    ),
+  total_tree_heatmap,
   device = "tiff",
   dpi = 600,
   units = "cm",
@@ -290,46 +301,48 @@ ggsave(
 
 # acquired per species
 
-qnr_genes <- c("qnrA1","qnrB19","qnrS1","qnrS2","qnrS4")
+qnr_genes <- c("qnrA1","qnrB19","qnrS1","qnrS2","qnrS4","qepA4")
+
+ac_plot <- acquired_report %>%
+  left_join(isolate_data, by = "id") %>%
+  gather(key, value, qnr_genes) %>%
+  group_by(key, value, species) %>%
+  dplyr::count() %>%
+  ungroup() %>%
+  mutate(value = if_else(value == 1, "Present", "Absent")) %>%
+  spread(value, n, fill = 0) %>%
+  rowwise() %>%
+  mutate(
+    Total = Present + Absent,
+    Percent = round(Present / Total * 100, 1),
+    lwr = round(get_binCI(Present, Total)[1], 1),
+    upr = round(get_binCI(Present, Total)[2], 1)
+  ) %>%
+  ggplot(aes(key, Percent, fill = species)) +
+  geom_col(color = "black",
+           position = position_dodge(0.9)) +
+  geom_errorbar(
+    aes(ymin = lwr, ymax = upr),
+    width = 0.6,
+    position = position_dodge(0.9)
+  ) +
+  scale_fill_manual(values = palette) +
+  labs(y = "Percent (%) of isolates",
+       fill = NULL) +
+  theme_classic() +
+  theme(
+    axis.text = element_text(size = 12),
+    axis.text.x = element_text(face = "italic"),
+    axis.title.y = element_text(size = 14),
+    legend.text = element_text(size = 12),
+    axis.title.x = element_blank(),
+    legend.justification = c(0, 1),
+    legend.position = c(0.82, 0.97)
+  )
 
 ggsave(
-  "C:/Users/vi1511/OneDrive - Veterinærinstituttet/Artikler/qrec_wgs/figures/acquired_per_species.tiff",
-  acquired_report %>%
-    left_join(isolate_data, by = "id") %>%
-    gather(key, value, qnr_genes) %>%
-    group_by(key, value, species) %>%
-    dplyr::count() %>%
-    ungroup() %>%
-    mutate(value = if_else(value == 1, "Present", "Absent")) %>%
-    spread(value, n, fill = 0) %>%
-    rowwise() %>%
-    mutate(
-      Total = Present + Absent,
-      Percent = round(Present / Total * 100, 1),
-      lwr = round(get_binCI(Present, Total)[1], 1),
-      upr = round(get_binCI(Present, Total)[2], 1)
-    ) %>%
-    ggplot(aes(key, Percent, fill = species)) +
-    geom_col(color = "black",
-             position = position_dodge(0.9)) +
-    geom_errorbar(
-      aes(ymin = lwr, ymax = upr),
-      width = 0.6,
-      position = position_dodge(0.9)
-    ) +
-    scale_fill_manual(values = palette) +
-    labs(y = "Percent (%) of isolates",
-         fill = NULL) +
-    theme_classic() +
-    theme(
-      axis.text = element_text(size = 12),
-      axis.text.x = element_text(face = "italic"),
-      axis.title.y = element_text(size = 14),
-      legend.text = element_text(size = 12),
-      axis.title.x = element_blank(),
-      legend.justification = c(0, 1),
-      legend.position = c(0.82, 0.97)
-    ),
+  "C:/Users/vi1511.VETINST/OneDrive - Veterinærinstituttet/Artikler/qrec_wgs/figures/acquired_per_species.tiff",
+  ac_plot,
   device = "tiff",
   units = "cm",
   dpi = 600,
@@ -337,147 +350,51 @@ ggsave(
   width = 25
 )
 
+# NMDS analysis
 
+res_mechanisms <- read.table("data/MDS_data.txt",
+                             sep = "\t",
+                             header = TRUE,
+                             stringsAsFactors = FALSE) %>%
+  column_to_rownames("id")
 
-# Mechanisms per animal species and MIC
+bin_dist <- dist(res_mechanisms,
+                 method = "binary")
 
-AddCol <- function(df, col_name) {
-  # split rows by delimeters
-  string_to_proc <- df %>% select(!!col_name) %>%
-    unlist() %>% str_split(regex("\\, |\\,")) 
-  # find unique entries
-  unique_strings <- string_to_proc %>%
-    unlist() %>% unique()
-  # construct names of the new columns
-  cols_names <- paste(col_name, unique_strings, sep = "_")
-  # construct 0/1-content columns for each unique entry
-  cols_content <- sapply(function(i) {
-    as.integer(unlist(lapply(function(Z) any(Z %in% unique_strings[i]), 
-                             X = string_to_proc)))
-  }, X = seq_along(unique_strings))
-  res <- data.frame(cols_content)
-  names(res) <- cols_names
-  return(res)
-}
+nmds_df <- metaMDS(bin_dist,
+                   trymax = 200,
+                   trace = FALSE) # silence the output
 
-total_df <- acquired_report %>%
-  left_join(mut_quant[c("gyrA","gyrB","parC","parE","id")], by = "id") %>%
-  left_join(mut_report[c("id","marR","marA","rpoB","soxR","robA")], by = "id") %>%
-  left_join(isolate_data[c("id", "species")]) %>%
-  filter(id %not_in% ex_samples)
+plot_data <- as.data.frame(nmds_df$points) %>%
+  rownames_to_column("ID") %>%
+  mutate(ST = sub("_.+","",ID),
+         ST = factor(ST, levels = c("10","58","117","155","162","355")))
 
-names(total_df) <- c("id","qepA4","qnrA1","qnrB19",
-                     "qnrB6","qnrB60","qnrS1","qnrS2",
-                     "qnrS4","GyrA","GyrB","ParC",
-                     "ParE","MarR","MarA","RpoB",
-                     "SoxR","RobA","species")
-
-col_proc <- c("GyrA","GyrB","ParC","ParE")
-
-id <- total_df$id
-
-cols_to_add <- sapply(function(i) {AddCol(df = total_df, col_name = col_proc[i])},
-                      X = seq_along(col_proc)) %>%
-  bind_cols() %>%
-  cbind(id) %>%
-  gather(key, value, -id) %>%
-  filter(grepl("(.*?)_0", key) == FALSE) %>%
-  spread(key, value)
-
-total_df2 <- total_df %>%
-  select(-c(GyrA, GyrB, ParC, ParE)) %>%
-  left_join(cols_to_add, by = "id") %>%
-  select(id, species, everything()) %>%
-  mutate_at(vars(qnrA1,qnrB19,qnrB6,qnrB60,qnrS1,qnrS2,qnrS4),
-            funs(as.numeric(.))) %>%
-  mutate(qnr = ifelse(rowSums(.[,4:10]) == 0, 0, 1)) %>%
-  select(-c(qnrA1,qnrB19,qnrB6,qnrB60,qnrS1,qnrS2,qnrS4)) %>%
-  left_join(mic_data[c("id","CIP")], by = "id") %>%
-  select(-id) %>%
-  mutate_at(vars(-species, CIP),
-            funs(as.numeric(as.character(.)))) %>%
-  group_by(species, CIP) %>%
-  summarise_all(funs(sum, n = n())) %>%
-  dplyr::rename("n" = MarR_n) %>%
-  select(-contains("_n")) %>%
-  gather(gene, value, -c(species, CIP, n)) %>%
-  mutate(gene2 = sub("(.*?)_(.*?)_sum", "\\1", gene),
-         gene2 = sub("(.*?)_sum", "\\1", gene2),
-         gene = sub("(.*?)_(.*?)_sum", "\\2", gene),
-         gene = sub("(.*?)_sum", "\\1", gene),
-         type = case_when(gene2 == "GyrA" ~ 1,
-                          gene2 == "GyrB" ~ 2,
-                          gene2 == "ParC" ~ 3,
-                          gene2 == "ParE" ~ 4,
-                          gene2 == "MarR" ~ 5,
-                          gene2 == "MarA" ~ 6,
-                          gene2 == "RpoB" ~ 7,
-                          gene2 == "SoxR" ~ 8,
-                          gene2 == "RobA" ~ 9,
-                          gene2 == "qnr" ~ 10,
-                          gene2 == "qepA4" ~ 11),
-         perc = value/n*100)
-
-
-
-p1 <- ggplot(total_df2, aes(reorder(gene, type), factor(CIP), fill = perc))+
-  geom_tile()+
-  scale_fill_viridis(option = "A",
-                     begin = 0.1,
-                     guide = guide_colorbar(barheight = 10,
-                                            barwidth = 0.8,
-                                            label.position = "left",
-                                            label.hjust = 0.5,
-                                            label.vjust = 0.3,
-                                            ticks = TRUE))+
-  theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.3, size = 9),
-        axis.text.y = element_text(size = 9),
-        axis.title.x = element_blank(),
-        axis.title.y = element_text(size = 10),
-        strip.background = element_rect(colour = "black", fill = "grey70"),
-        strip.text = element_text(size = 12),
-        legend.position = "left",
-        legend.title = element_blank(),
-        legend.text = element_text(size = 10))+
-  labs(y = "CIP MIC")+
-  facet_wrap(~species, ncol = 1)+
-  coord_fixed()
-
-
-
-nplot_data <- total_df %>%
-  left_join(mic_data[c("id","CIP")], by = "id") %>%
-  group_by(species, CIP) %>%
-  dplyr::count() %>%
-  ungroup()
-
-n_names <- c("Broiler" = "n",
-             "Pig" = "n",
-             "Red fox" = "n",
-             "Wild bird" = "n")
-
-p2 <- ggplot(nplot_data, aes(factor(CIP), n))+
-  geom_col()+
-  theme(axis.title = element_blank(),
-        axis.text.y = element_blank(),
-        axis.text.x = element_text(size = 9),
-        axis.ticks.y = element_blank(),
-        strip.text = element_text(size = 12, face = "italic"),
-        strip.background = element_rect(colour = "black", fill = "grey70"),
-        plot.margin = unit(c(0,0,-10,0), "cm"))+
-  facet_wrap(~species, ncol = 1, labeller = as_labeller(n_names))+
-  coord_flip()
-
-p1g <- ggplotGrob(p1)
-p2g <- ggplotGrob(p2)
-
-g <- cbind(p1g, p2g, size = "first")
+nmds_plot <- ggplot(plot_data, 
+       aes(x = MDS1,
+           y = MDS2,
+           fill = ST)) +
+  geom_point(position = position_jitter(0.015, 0.015),
+             size = 3,
+             pch = 21) +
+  scale_fill_brewer(type = "qual",
+                    palette = 6) +
+  labs(x = "Dimension 1",
+       y = "Dimension 2",
+       fill = "Sequence\nType") +
+  theme_bw() +
+  theme(axis.line = element_line(),
+        axis.text = element_text(size = 12),
+        axis.title = element_text(size = 14),
+        legend.text = element_text(size = 12),
+        legend.title = element_text(size = 14),
+        panel.border = element_blank())
 
 ggsave(
-  "C:/Users/vi1511.VETINST/OneDrive - Veterinærinstituttet/Artikler/qrec_wgs/figures/mechanisms_per_species_mic.tiff",
-  grid.arrange(g),
+  "C:/Users/vi1511.VETINST/OneDrive - Veterinærinstituttet/Artikler/qrec_wgs/figures/nmds_plot.tiff",
+  nmds_plot,
   device = "tiff",
   units = "cm",
   dpi = 600,
-  height = 25,
-  width = 30)
+  height = 20,
+  width = 25)
