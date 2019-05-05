@@ -30,6 +30,7 @@ library(ape)
 library(tibble)
 library(cowplot)
 library(knitr)
+library(vegan)
 library(distanceR)
 ```
 
@@ -125,217 +126,13 @@ ggplot(test, aes(metric, value)) +
         axis.ticks.x = element_blank())
 ```
 
-# Total dendrogram of all isolates
-Genetic distances were calculated from the allele data from the cgMLST report, and a dendrogram was drawn from these distances. The annotations are based on data from the ARIBA resistance gene analysis.
-```{r, fig.height=20, fig.width=20, message=FALSE, warning=FALSE}
-cgMLST_data <- read.table("../data/chewbbaca/complete_results/clean_cgMLST_data.txt",
-                   sep = "\t",
-                   header = TRUE,
-                   colClasses = "factor")
-
-total_tree <- as.phylo(hclust(daisy(cgMLST_data, metric = "gower"), method = "average"))
-
-
-tree_metadata <- read.table("../data/chewbbaca/complete_results/tree_metadata.txt",
-                            sep = "\t",
-                            header = TRUE)
-
-tree_heatmap_data <- read.table("../data/chewbbaca/complete_results/tree_heatmap_data.txt",
-                            sep = "\t",
-                            header = TRUE) %>%
-  select(-gadX)
-
-names(tree_heatmap_data) <- c("GyrA","ParC","ParE","RpoB","MarA","MarR","SoxR","qepA4","qnr")
-
-palette <- c("Broiler" = "#4575b4",
-             "Pig" = "#74add1",
-             "Red fox" = "#f46d43",
-             "Wild bird" = "#fdae61")
-
-palette2 <- c("1-A" = "#fc8d59",
-              "1-I" = "#80b1d3",
-              "0" = "grey95")
-
-total_tree_annotated <- ggtree(total_tree,
-                               layout = "circular",
-                               color = "#808080",
-                               size = 0.5) %<+% tree_metadata +
-                               geom_tippoint(aes(color = species),
-                               size = 3) +
-                               geom_tiplab2(aes(label = ST),
-                               offset = 0.01,
-                               size = 4) +
-  scale_color_manual(values = palette)
-
-total_tree_opened <- rotate_tree(open_tree(total_tree_annotated, 8), 93)
-
-gheatmap(total_tree_opened,
-         tree_heatmap_data,
-         offset = 0.04,
-         width = 0.3,
-         colnames_offset_y = 2.5,
-         colnames_position = "top",
-         font.size = 5) +
-  scale_fill_manual(values = palette2,
-                    labels = c("Gene/Mutation absent",
-                               "Acquired gene present",
-                               "Intrinsic gene mutated")) +
-  theme(legend.position = c(0.9,0.9),
-        legend.text = element_text(size = 20))
-```
-
-# Dendrograms per animal species
-```{r, fig.height=25, fig.width=25, message=FALSE, warning=FALSE}
-
-metadata_species <- read.table("../data/chewbbaca/complete_results/metadata_species_specific_trees.txt",
-                               sep = "\t",
-                               header = TRUE) %>%
-  select(gyrA, parC, parE, PMQR) %>%
-  dplyr::rename("GyrA" = gyrA,
-         "ParC" = parC,
-         "ParE" = parE)
-
-palette3 <- c("0" = "grey95",
-              # gyrA
-              "S83L" = "#c6dbef",
-              "S83A" = "#9ecae1",
-              "D87N" = "#6baed6",
-              "D87H" = "#4292c6",
-              "D87Y" = "#2171b5",
-              "D87G" = "#08519c",
-              "S83L, D87N" = "#08306b",
-              # parC
-              "S80I" = "#a1d99b",
-              "S80R" = "#74c476",
-              "S57T" = "#41ab5d",
-              "A56T, S80I" = "#238b45",
-              "S80I, E84V" = "#005a32",
-              # parE
-              "D475E" = "#fdd0a2",
-              "D463N" = "#fdae6b",
-              "S458A" = "#fd8d3c",
-              "L416F" = "#f16913",
-              "H516Y" = "#d94801",
-              "L488M, A512T" = "#8c2d04",
-              # PMQR
-              "qnrA1" = "#dadaeb",
-              "qnrB19" = "#bcbddc",
-              "qnrS1" = "#9e9ac8",
-              "qnrS2" = "#807dba",
-              "qnrS4" = "#6a51a3",
-              "qepA4" = "#4a1486")
-
-# Broiler tree
-
-broiler_tree <- calc_tree("../data/chewbbaca/complete_results/cgMLST_broiler.tsv")
-
-broiler_tree_annotated <- ggtree(broiler_tree,
-                                 layout = "circular",
-                                 color = "#808080",
-                                 size = 0.5) %<+% tree_metadata +
-  geom_tippoint(color = "#4575b4",
-                size = 4) +
-  geom_tiplab2(aes(label = ST),
-               offset = 0.02,
-               size = 6)
-
-broiler_complete <- gheatmap(broiler_tree_annotated,
-         metadata_species,
-         offset = 0.1,
-         width = 0.5,
-         colnames = FALSE) +
-  scale_fill_manual(values = palette3) +
-  guides(fill = FALSE)
-
-# Pig tree
-pig_tree <- calc_tree("../data/chewbbaca/complete_results/cgMLST_pig.tsv")
-
-pig_tree_annotated <- ggtree(pig_tree,
-                                 layout = "circular",
-                                 color = "#808080",
-                                 size = 0.5) %<+% tree_metadata +
-  geom_tippoint(color = "#74add1",
-                size = 4) +
-  geom_tiplab2(aes(label = ST),
-               offset = 0.02,
-               size = 5.5)
-
-pig_complete <- gheatmap(pig_tree_annotated,
-         metadata_species,
-         offset = 0.09,
-         width = 0.5,
-         colnames = FALSE) +
-  scale_fill_manual(values = palette3) +
-  guides(fill = FALSE)
-
-# Red fox tree
-fox_tree <- calc_tree("../data/chewbbaca/complete_results/cgMLST_fox.tsv")
-
-fox_tree_annotated <- ggtree(fox_tree,
-                                 layout = "circular",
-                                 color = "#808080",
-                                 size = 0.5) %<+% tree_metadata +
-  geom_tippoint(color = "#f46d43",
-                size = 4) +
-  geom_tiplab2(aes(label = ST),
-               offset = 0.02,
-               size = 5.5)
-
-fox_complete <- gheatmap(fox_tree_annotated,
-         metadata_species,
-         offset = 0.09,
-         width = 0.5,
-         colnames = FALSE) +
-  scale_fill_manual(values = palette3) +
-  guides(fill = FALSE)
-
-# Wild bird tree
-bird_tree <- calc_tree("../data/chewbbaca/complete_results/cgMLST_bird.tsv")
-
-bird_tree_annotated <- ggtree(bird_tree,
-                                 layout = "circular",
-                                 color = "#808080",
-                                 size = 0.5) %<+% tree_metadata +
-  geom_tippoint(color = "#fdae61",
-                size = 4) +
-  geom_tiplab2(aes(label = ST),
-               offset = 0.02,
-               size = 5.5)
-
-bird_complete <- gheatmap(bird_tree_annotated,
-         metadata_species,
-         offset = 0.09,
-         width = 0.5,
-         colnames = FALSE) +
-  scale_fill_manual(values = palette3) +
-  guides(fill = FALSE)
-
-# Total plot
-tot_plot <- plot_grid(broiler_complete,
-          pig_complete,
-          fox_complete,
-          bird_complete,
-          nrow = 2,
-          ncol = 2,
-          align = "h",
-          labels = c("Broiler","Pig","Red fox","Wild bird"))
-
-include_graphics("../figures/species_dendrogram2.png")
-```
-
 # Minimum spanning tree
 A minimum spanning tree calculated from the cgMLST data with GrapeTree [3] using MSTreeV2. Number of allele differences are denoted as numbers on branches between nodes. The branches have been collapsed on ten differences or less. The number inside each node is the sequence type based on the Warwick 7-gene MLST scheme [4].
 ```{r, fig.width=15, fig.height=12}
 include_graphics("../figures/GrapeTree_cgMLST.png")
 ```
 
-
-
-
-# Statistics
-## Distribution of calculated distances per animal species
-Below follows a plot of the distribution of the lower triangular distances for each animal species. A bimodal distribution is present in all four plots. The filtering values of < 0.1 and > 0.8 is used for downstream statistics to acertain whether the broiler isolates are more homogenous than the isolates from other species.
-
+# Allele distance distribution
 ```{r}
 # calculates distances from cgMLST data and returns
 # the lower triangular of the matrix, with (diag = FALSE)
@@ -439,10 +236,9 @@ plot(x4,
      xlab = "Distance",
      ylim = c(0, 50))
 
-
 ```
 
-## Distribution of iterated distances
+# Distribution of iterated distances
 Distribution of percentages of distances < 0.1 or > 0.8. The distribution is based on 1000 iterations of the distance data. Observed values are denoted as arrows for each animal species; dark blue = Broiler, light blue = Pig, red = Red fox, yellow = Wild bird. The mean value is denoted as a vertical black line.
 ```{r, warning=FALSE, message=FALSE, dpi=300}
 # generate data frame from allele data
@@ -773,6 +569,28 @@ ggplot(lower_data, aes(Percent_below)) +
   ggtitle(label = "Distribution of Percentages",
           subtitle = "Number of iterations: 1000") +
   theme(plot.title = element_text(hjust = 0))
+
+```
+
+# NMDS Analysis of resistance mechanisms
+Non-metric multidimensional scaling (NMDS) was used to see if the distribution of quinolone resistance mechanisms from some sequence types were more homogenous than in other sequence types.
+```{r}
+res_mechanisms <- read.table("../data/MDS_data.txt",
+                       sep = "\t",
+                       header = TRUE,
+                       stringsAsFactors = FALSE) %>%
+  column_to_rownames("id")
+
+bin_dist <- dist(res_mechanisms,
+                 method = "binary")
+
+nmds_df <- metaMDS(bin_dist,
+                   trymax = 200,
+                   trace = FALSE) # silence the output
+
+print(paste0("Stress: ", round(nmds_df$stress, 3)))
+
+stressplot(nmds_df)
 
 ```
 
