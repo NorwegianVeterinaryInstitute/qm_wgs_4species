@@ -19,14 +19,14 @@ output:
       toc_depth: '3'
 ---
 
-```{r include=FALSE}
+```{r message = FALSE, warning=FALSE}
 # Libraries
 library(dplyr)
 library(tidyr)
 library(kableExtra)
 ```
 
-```{r Import data, include = FALSE}
+```{r Import data, message=FALSE, warning=FALSE}
 # Vector of excluded samples
 ex_samples <- c(
   "2016-17-565-1-S",

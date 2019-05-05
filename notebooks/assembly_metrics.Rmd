@@ -19,9 +19,16 @@ output:
       toc_depth: '3'
 ---
 
-```{r, include = FALSE}
-pacman::p_load(dplyr, ggplot2, tidyr, cowplot, scales)
+```{r, message=FALSE, warning=FALSE}
+library(dplyr)
+library(ggplot2)
+library(tidyr)
+library(cowplot)
+library(scales)
+```
 
+
+```{r, include = FALSE}
 "%not_in%" <- Negate("%in%")
 
 id_data <- read.table("../data/id.txt",
@@ -81,8 +88,7 @@ create_df <- function(df) {
 ```
 
 
-# Import files and clean data
-```{r}
+```{r, message=FALSE, warning=FALSE}
 files <- file_names(path)
 
 data_list <- lapply(files,
@@ -111,8 +117,20 @@ df_clean <- create_df(df) %>%
   left_join(isolate_data[c("id","sequencer")], by = "id")
 
 metrics <- df_clean %>%
-  select(id, no_of_contigs, largest_contig, GC, N50, NG50, L50, LG50, no_of_misassemblies, duplication_ratio, genes) %>%
-  mutate_at(vars(no_of_contigs, largest_contig, N50),
+  select(id,
+         no_of_contigs,
+         largest_contig,
+         GC,
+         N50,
+         NG50,
+         L50,
+         LG50,
+         no_of_misassemblies,
+         duplication_ratio,
+         genes) %>%
+  mutate_at(vars(no_of_contigs,
+                 largest_contig,
+                 N50),
             funs(as.numeric))
 
 metrics
@@ -120,12 +138,20 @@ metrics
 metrics2 <- metrics %>%
   left_join(isolate_data, by = "id")
 
-embed_data <- function(x = mtcars, filename = "file.csv", label= "Get data") {
+embed_data <- function(x = mtcars,
+                       filename = "file.csv",
+                       label= "Get data") {
 
   # Create encoded Base64 datastream 
   encode_data <- function(x){
     write.csv2(x, "./file.csv")
-    enc= sprintf('data:text/csv;base64,%s', openssl::base64_encode(paste0(readLines("./file.csv"), collapse="\n")) )
+    enc= sprintf('data:text/csv;base64,%s',
+                 openssl::base64_encode(
+                   paste0(
+                     readLines("./file.csv"),
+                     collapse="\n")
+                   )
+                 )
     unlink("./file.csv")
     return(enc)
   }

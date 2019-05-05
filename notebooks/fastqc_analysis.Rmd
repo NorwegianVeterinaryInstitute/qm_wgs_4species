@@ -1,5 +1,5 @@
 ---
-title: "Fastqc Analysis of Raw Reads"
+title: "Fastqc Analysis of raw reads"
 author: "Håkon Kaspersen"
 date: '`r format(Sys.time(), "%d.%m.%Y")`'
 output:
@@ -18,33 +18,20 @@ output:
       toc_depth: '3'
 ---
 
-# Dependencies
-This analysis depends on the following packages:
-
-- fastqcr
-
-- dplyr
-
-- ggplot2
-
-- tidyr
-
-- viridis
-
-- ggsci
-
-- scales
-
-```{r, include = FALSE}
-if (!require("pacman")) install.packages("pacman")
-pacman::p_load(fastqcr,dplyr,ggplot2,tidyr,viridis,ggsci,scales)
+```{r, message=FALSE, warning=FALSE}
+library(fastqcr)
+library(dplyr)
+library(ggplot2)
+library(tidyr)
+library(viridis)
+library(ggsci)
+library(scales)
 ```
 
 ```{r, include = FALSE}
 input_dir <- "C:/Users/VI1511/OneDrive - Veterinærinstituttet/R/R_Projects/qrec_wgs1/data/fastqc"
 ```
 
-# Functions
 ```{r}
 # Function that lists all the file names in the input folder
 file_names <- function(filepath, folder) {
