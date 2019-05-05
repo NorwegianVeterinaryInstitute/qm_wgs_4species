@@ -122,3 +122,49 @@ p_values_total <- lapply(mechanism_per_species, function(x) do_chisq_test(x)) %>
 p_values_total %>%
   kable() %>%
   kable_styling(bootstrap_options = c("striped", "hover"))
+
+
+
+## PMQR determinants
+test <- acquired_report %>%
+  mutate_at(vars(-id),
+            funs(as.numeric)) %>%
+  mutate(PMQR = ifelse(rowSums(.[,2:9]) > 0, 1, 0)) %>%
+  select(id, PMQR) %>%
+  left_join(isolate_data[,c("id","species")], by = "id") %>%
+  group_by(species, PMQR) %>%
+  count() %>%
+  ungroup() %>%
+  mutate(PMQR = ifelse(PMQR == 1, "Present", "Absent")) %>%
+  spread(PMQR, n, fill = 0) %>%
+  dplyr::slice(expand.grid(1:length(unique(species)),
+                           1:length(unique(species))) %>%
+                 rev %>% 
+                 dplyr::filter(Var2 < Var1) %>% t) %>%
+  # create test ID
+  mutate(test = rep(1:(n()/2), each = 2)) %>%
+  group_by(test) %>%
+  # specify values for chi-squred tests
+  dplyr::do(data_frame(test = dplyr::first(.$test),
+                       species1 = dplyr::first(.$species),
+                       species2 = dplyr::last(.$species),
+                       data = list(matrix(c(.$Absent,
+                                            .$Present),
+                                          ncol = 2)))) %>%
+  # do chi-squared tests
+  mutate(chi_test = map(data, chisq.test,
+                        correct = FALSE)) %>%
+  mutate(p.value = round(map_dbl(chi_test, "p.value"),3),
+         df = map_dbl(chi_test, "parameter"),
+         x_sq = round(map_dbl(chi_test, "statistic"),2),
+         dupl = duplicated(test)) %>%
+  # filter out duplicated tests
+  dplyr::filter(dupl == FALSE) %>%
+  ungroup() %>%
+  rowwise() %>%
+  mutate(n = sum(unlist(data))) %>%
+  select(species1, species2, n, df, x_sq, p.value) %>%
+  # round off p-value column
+  mutate(p.value = round(p.value, 5)) %>%
+  dplyr::filter(p.value <= 0.05)
+
