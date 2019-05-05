@@ -1,5 +1,5 @@
 ---
-title: "Quality control - Mash screen"
+title: "Mash screen results"
 author: "Håkon Kaspersen"
 date: '`r format(Sys.time(), "%d.%m.%Y")`'
 always_allow_html: yes
@@ -19,8 +19,13 @@ output:
       toc_depth: '3'
 ---
 
-```{r}
-pacman::p_load(ggplot2, dplyr, tidyr, stringr, purrr, viridis)
+```{r, warning=FALSE, message=FALSE}
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+library(stringr)
+library(purrr)
+library(viridis)
 ```
 
 ```{r}

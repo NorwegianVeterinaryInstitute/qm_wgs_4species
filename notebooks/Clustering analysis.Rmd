@@ -19,7 +19,7 @@ output:
       toc_depth: '3'
 ---
 
-```{r libraries, include = FALSE}
+```{r libraries, message=FALSE, warning=FALSE}
 library(dplyr)
 library(tidyr)
 library(ggplot2)
@@ -34,9 +34,6 @@ library(vegan)
 library(distanceR)
 ```
 
-# Core genome MLST schema and quality control
-The _E. coli_ scheme from Enterobase [1] was used with chewBBACA [2] to get the cgMLST profile for each isolate.
-The number of missing loci in total (sum of LNF, NIPH, PLOT, ALM and ASM from chewBBACA) is plotted below for all isolates.
 
 ```{r import data}
 # Vector of excluded samples
@@ -92,6 +89,10 @@ cgMLST_allele_data <- read.table("../data/chewbbaca/complete_results/cgMLST.tsv"
   filter(id %not_in% ex_samples)
 
 ```
+
+# Core genome MLST schema and quality control
+The _E. coli_ scheme from Enterobase [1] was used with chewBBACA [2] to get the cgMLST profile for each isolate.
+The number of missing loci in total (sum of LNF, NIPH, PLOT, ALM and ASM from chewBBACA) is plotted below for all isolates.
 
 ```{r cgMLST stats}
 boxplot(cgmlst_stats$number.of.missing.data,
