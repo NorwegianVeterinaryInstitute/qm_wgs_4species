@@ -11,16 +11,15 @@ Supplementary material for the article "Closely related quinolone resistant Esch
 [Prokka sequence analysis script](/scripts/prokka_check.R)
 
 ## Notebooks
-
-[Additional Tables](/notebooks/article_notebook2.html)
-
-[cgMLST clustering](/notebooks/Clustering_analysis.html)
-
 [FastQC analysis results](/notebooks/fastqc_analysis.html)
 
 [Mash screen results](/notebooks/mash_analysis.html)
 
 [QUAST results](/notebooks/assembly_metrics.html)
+
+[Additional Tables](/notebooks/article_notebook2.html)
+
+[cgMLST clustering](/notebooks/Clustering_analysis.html)
 
 ## Reference sequences
 
