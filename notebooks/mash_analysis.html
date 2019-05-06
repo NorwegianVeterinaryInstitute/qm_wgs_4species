@@ -369,7 +369,7 @@ div.tocify {
 
 <h1 class="title toc-ignore">Mash screen results</h1>
 <h4 class="author">Håkon Kaspersen</h4>
-<h4 class="date">05.05.2019</h4>
+<h4 class="date">06.05.2019</h4>
 
 </div>
 
@@ -466,7 +466,7 @@ mash_raw &lt;-<span class="st"> </span><span class="kw">get_mash_data</span>(fil
 
 ids &lt;-<span class="st"> </span>test<span class="op">$</span>id
 
-test2 &lt;-<span class="st"> </span>mash_plot_df <span class="op">%&gt;%</span>
+mash_plot_df <span class="op">%&gt;%</span>
 <span class="st">  </span><span class="kw">select</span>(<span class="op">-</span><span class="kw">c</span>(phage,shared_hashes,query_id,query_comment,median_multiplicity,test,p_value)) <span class="op">%&gt;%</span>
 <span class="st">  </span><span class="kw">filter</span>(id <span class="op">%in%</span><span class="st"> </span>ids) <span class="op">%&gt;%</span>
 <span class="st">  </span><span class="kw">mutate</span>(<span class="dt">id2 =</span> <span class="dv">1</span><span class="op">:</span><span class="kw">n</span>()) <span class="op">%&gt;%</span>
@@ -476,15 +476,11 @@ test2 &lt;-<span class="st"> </span>mash_plot_df <span class="op">%&gt;%</span>
 <span class="st">  </span><span class="kw">summarise_all</span>(<span class="kw">funs</span>(func_paste)) <span class="op">%&gt;%</span>
 <span class="st">  </span><span class="kw">mutate</span>(<span class="st">`</span><span class="dt">Escherichia coli</span><span class="st">`</span> =<span class="st"> </span><span class="kw">sapply</span>(<span class="st">`</span><span class="dt">Escherichia coli</span><span class="st">`</span>, scan_max)) <span class="op">%&gt;%</span>
 <span class="st">  </span><span class="kw">mutate_all</span>(<span class="kw">funs</span>(<span class="kw">gsub</span>(<span class="st">&quot;^$&quot;</span>, <span class="ot">NA</span>, .)))</code></pre></div>
-<pre><code>## Warning: funs() is soft deprecated as of dplyr 0.8.0
-## please use list() instead
-## 
-## # Before:
-## funs(name = f(.)
-## 
-## # After: 
-## list(name = ~f(.))
-## This warning is displayed once per session.</code></pre>
+<div data-pagedtable="false">
+<script data-pagedtable-source type="application/json">
+{"columns":[{"label":["id"],"name":[1],"type":["chr"],"align":["left"]},{"label":["Citrobacter freundii"],"name":[2],"type":["chr"],"align":["left"]},{"label":["Citrobacter youngae"],"name":[3],"type":["chr"],"align":["left"]},{"label":["Enterobacter cloacae"],"name":[4],"type":["chr"],"align":["left"]},{"label":["Escherichia coli"],"name":[5],"type":["chr"],"align":["left"]},{"label":["UNVERIFIED_ORG: Citrobacter"],"name":[6],"type":["chr"],"align":["left"]}],"data":[{"1":"2016-02-428-2-S","2":"0.989958","3":"NA","4":"NA","5":"0.916433","6":"NA","_row":"0.916433"},{"1":"2016-02-486-2-S","2":"NA","3":"0.897413","4":"NA","5":"0.92688","6":"0.984152","_row":"0.92688"},{"1":"2016-02-732-2-S","2":"0.992012","3":"NA","4":"NA","5":"0.921098","6":"NA","_row":"0.921098"},{"1":"2016-17-565-1-S","2":"NA","3":"NA","4":"0.995258","5":"0.922791","6":"NA","_row":"0.922791"}],"options":{"columns":{"min":{},"max":[10]},"rows":{"min":[10],"max":[10]},"pages":{}}}
+  </script>
+</div>
 </div>
 
 
