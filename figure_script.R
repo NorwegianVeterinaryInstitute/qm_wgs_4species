@@ -370,7 +370,7 @@ plot_data <- as.data.frame(nmds_df$points) %>%
   mutate(ST = sub("_.+","",ID),
          ST = factor(ST, levels = c("10","58","117","155","162","355")))
 
-nmds_plot <- ggplot(plot_data, 
+ggplot(plot_data, 
        aes(x = MDS1,
            y = MDS2,
            fill = ST)) +
