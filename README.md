@@ -5,6 +5,8 @@ Supplementary material for the article "Closely related quinolone resistant Esch
 
 [Download metadata table in excel format](total_data.xlsx)
 
+[ARIBA Flag selection table](ariba_flag_selection.xlsx)
+
 ## R scripts
 [ARIBA results analysis script](/scripts/ARIBA_analysis.R)
 
