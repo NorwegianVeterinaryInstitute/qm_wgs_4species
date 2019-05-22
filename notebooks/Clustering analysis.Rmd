@@ -28,7 +28,6 @@ library(cluster)
 library(Biostrings)
 library(ape)
 library(tibble)
-library(cowplot)
 library(knitr)
 library(vegan)
 library(distanceR)
@@ -61,7 +60,7 @@ id_data <- read.table("../data/id.txt",
 isolate_data <- read.table("../data/isolate_data.txt",
                            sep = "\t",
                            header = T,
-                           stringsAsFactors = F) %>%
+                           stringsAsFactors = F)
   filter(id %not_in% ex_samples)
 
 
@@ -87,7 +86,6 @@ cgMLST_allele_data <- read.table("../data/chewbbaca/complete_results/cgMLST.tsv"
   left_join(id_data, by = "ref") %>%
   select(id, everything(), -ref) %>%
   filter(id %not_in% ex_samples)
-
 ```
 
 # Core genome MLST schema and quality control

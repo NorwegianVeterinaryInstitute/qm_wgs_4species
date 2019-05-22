@@ -186,3 +186,69 @@ mut_filtered %>%
   kable_styling(bootstrap_options = c("striped", "hover"))
 ```
 
+
+# R and R-Packages
+R version 3.6.0 [1] was used in the present study. The following packages were used:
+
+| Package       | Version | Reference |
+|---------------|---------|-----------|
+| dplyr         | 0.8.0.1 |   [2]     |
+| tidyr         | 0.8.3   |   [3]     |
+| ggplot2       | 3.1.1   |   [4]     |
+| purrr         | 0.3.2   |   [5]     |
+| tibble        | 2.1.1   |   [6]     |
+| Biostrings    | 2.50.2  |   [7]     |
+| vegan         | 2.5.4   |   [8]     |
+| stringr       | 1.4.0   |   [9]     |
+| cluster       | 2.0.8   |   [10]    |
+| ape           | 5.3     |   [11]    |
+| ggtree        | 1.14.6  |   [12]    |
+| RColorBrewer  | 1.1-2   |   [13]    |
+| cowplot       | 0.9.4   |   [14]    |
+| knitr         | 1.22    |   [15]    |
+| kableExtra    | 1.1.0   |   [16]    |
+| ggsci         | 2.9     |   [17]    |
+| fastqcr       | 0.1.2   |   [18]    |
+| scales        | 1.0.0   |   [19]    |
+| viridis       | 0.5.1   |   [20]    |
+
+# References
+[1] RCoreTeam. R: A language and environment for statistical computing. R Foundation for Statistical Computing, Vienna, Austria. URL https://www.R-project.org/. 2018.
+
+[2] Wickham H, François R, Henry L, Müller K. dplyr: A Grammar of Data Manipulation [Internet]. 2019. Available from: https://cran.r-project.org/package=dplyr
+
+[3] Wickham H, Henry L. tidyr: Easily Tidy Data with “spread()” and “gather()” Functions [Internet]. 2019. Available from: https://cran.r-project.org/package=tidyr
+
+[4] Wickham H, Chang W, Henry L, Pedersen TL, Takahashi K, Wilke C, et al. ggplot2: Create Elegant Data Visualisations Using the Grammar of Graphics [Internet]. 2019. Available from: https://cran.r-project.org/package=ggplot2
+
+[5] Henry L, Wickham H. purrr: Functional Programming Tools [Internet]. 2019. Available from: https://cran.r-project.org/package=purrr
+
+[6] Müller K, Wickham H. tibble: Simple Data Frames [Internet]. 2019. Available from: https://cran.r-project.org/package=tibble
+
+[7] Pagès H, Aboyoun P, Gentleman R, DebRoy S. Biostrings: Efficient manipulation of biological strings. 2019.
+
+[8] Oksanen J, Blanchet FG, Friendly M, Kindt R, Legendre P, McGlinn D, et al. vegan: Community Ecology Package [Internet]. 2019. Available from: https://cran.r-project.org/package=vegan
+
+[9] Wickham H. stringr: Simple, Consistent Wrappers for Common String Operations [Internet]. 2019. Available from: https://cran.r-project.org/package=stringr
+
+[10] Maechler M, Rousseeuw P, Struyf A, Hubert M. cluster: “Finding Groups in Data”: Cluster Analysis Extended Rousseeuw et al. [Internet]. 2019. Available from: https://cran.r-project.org/package=cluster
+
+[11] Paradis E, Blomberg S, Bolker B, Brown J, Claude J, Cuong HS, et al. ape: Analyses of Phylogenetics and Evolution [Internet]. 2019. Available from: https://cran.r-project.org/package=ape
+
+[12] Yu G, Smith DK, Zhu H, Guan Y, Lam TT-Y. Ggtree: a package for visualization and annotation of phylogenetic trees with their covariates and other associated data. McInerny G, editor. Methods Ecol Evol [Internet]. 2017 Jan;8(1):28–36. Available from: http://doi.wiley.com/10.1111/2041-210X.12628
+
+[13] Neuwirth E. RColorBrewer: ColorBrewer Palettes [Internet]. 2014. Available from: https://cran.r-project.org/package=RColorBrewer
+
+[14] Wilke CO. cowplot: Streamlined Plot Theme and Plot Annotations for “ggplot2” [Internet]. 2019. Available from: https://cran.r-project.org/package=cowplot
+
+[15] Xie Y. knitr: A General-Purpose Package for Dynamic Report Generation in R [Internet]. 2019. Available from: https://cran.r-project.org/package=knitr
+
+[16] Zhu H. kableExtra: Construct Complex Table with “kable” and Pipe Syntax [Internet]. 2019. Available from: https://cran.r-project.org/package=kableExtra
+
+[17] Xiao N. ggsci: Scientific Journal and Sci-Fi Themed Color Palettes for “ggplot2” [Internet]. 2018. Available from: https://cran.r-project.org/package=ggsci
+
+[18] Kassambara A. fastqcr: Quality Control of Sequencing Data [Internet]. 2019. Available from: https://cran.r-project.org/package=fastqcr
+
+[19] Wickham H. scales: Scale Functions for Visualization [Internet]. 2018. Available from: https://cran.r-project.org/package=scales
+
+[20] Garnier S. viridis: Default Color Maps from “matplotlib” [Internet]. 2018. Available from: https://cran.r-project.org/package=viridis
