@@ -17,6 +17,8 @@ mut_genes <- c("gyr","par","marR","marA",
 
 # -------------------------- Functions ----------------------------
 
+"%not_in%" <- Negate("%in%")
+
 # Paste unique cell values together, separate with ","
 func_paste2 <- function(x) paste(unique(x[!is.na(x)]),
                                  collapse = ",")
