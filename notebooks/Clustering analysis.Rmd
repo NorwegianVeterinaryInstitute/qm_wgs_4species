@@ -60,7 +60,7 @@ id_data <- read.table("../data/id.txt",
 isolate_data <- read.table("../data/isolate_data.txt",
                            sep = "\t",
                            header = T,
-                           stringsAsFactors = F)
+                           stringsAsFactors = F) %>%
   filter(id %not_in% ex_samples)
 
 
