@@ -52,46 +52,6 @@ isolate_data <- read.table("../data/isolate_data.txt",
                            stringsAsFactors = F) %>%
   filter(id %not_in% ex_samples)
 
-two_reads <- read.table("../data/no_of_reads.txt",
-                          sep = "\t",
-                          header = F,
-                          stringsAsFactors = F) %>%
-  dplyr::rename("ref" = V1,
-         "reads" = V2) %>%
-  mutate(ref = gsub(".+/(.*?)\\.fastq\\.gz", "\\1", ref),
-         type = ifelse(grepl("R1", ref) == TRUE, "R1", "R2")) %>%
-  mutate(ref = gsub("(.*?)_L00[0-9]_R[1-2]_00[0-9]","\\1", ref)) %>%
-  group_by(ref) %>%
-  mutate(id = n()) %>%
-  {. ->> four_reads} %>%
-  filter(id == 2) %>%
-  spread(type, reads) %>%
-  dplyr::rename("R1-1" = R1,
-         "R2-1" = R2) %>%
-  mutate("R1-2" = NA,
-         "R2-2" = NA) %>%
-  select(-id) %>%
-  mutate_all(funs(as.character(.)))
-
-four_reads <- four_reads %>%
-  filter(id == 4) %>%
-  group_by(ref) %>%
-  mutate(id = 1:n()) %>%
-  spread(id, reads) %>%
-  summarise_all(funs(func_paste)) %>%
-  dplyr::rename("R1-1" = `1`,
-         "R2-1" = `2`,
-         "R1-2" = `3`,
-         "R2-2" = `4`) %>%
-  select(-type) %>%
-  mutate_all(funs(as.character(.)))
-
-no_of_reads <- as.data.frame(rbind(as.matrix(two_reads),
-                                   as.matrix(four_reads))) %>%
-  left_join(id_data, by = "ref") %>%
-  select(id, everything(), -ref) %>%
-  filter(id %not_in% ex_samples)
-
 mic_data <- read.table("../data/mic_data.txt",
                            sep = "\t",
                            header = T,
@@ -112,7 +72,8 @@ source("../scripts/ARIBA_analysis.R")
 This table presents the groups created in the isolate selection. The "Additional Resistances" column contains how many additional antimicrobials the isolates in that group is resistant to, other than CIP and/or NAL.
 ```{r}
 mic_data %>%
-  group_by(antres, CIP, NAL) %>%
+  left_join(isolate_data[,c("id","species")], by = "id") %>%
+  group_by(antres, CIP, NAL, species) %>%
   count() %>%
   dplyr::rename("Additional Resistances" = antres) %>%
   ungroup() %>%
