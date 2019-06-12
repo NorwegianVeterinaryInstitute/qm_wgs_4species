@@ -30,10 +30,10 @@ library(kableExtra)
 # Vector of excluded samples
 ex_samples <- c(
   "2016-17-565-1-S",
-  "2016-02-415-2-S",
   "2016-02-428-2-S",
   "2016-02-486-2-S",
-  "2016-02-732-2-S"
+  "2016-02-732-2-S",
+  "2014-01-1741-1-S"
   )
 
 # Collapses data frame to unique lines while ignoring NA's
