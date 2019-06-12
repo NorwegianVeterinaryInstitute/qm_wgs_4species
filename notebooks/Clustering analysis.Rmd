@@ -38,7 +38,6 @@ library(distanceR)
 # Vector of excluded samples
 ex_samples <- c(
   "2016-17-565-1-S",
-  "2016-02-415-2-S",
   "2016-02-428-2-S",
   "2016-02-486-2-S",
   "2016-02-732-2-S",
@@ -68,14 +67,13 @@ isolate_data <- read.table("../data/isolate_data.txt",
 cgmlst_stats <- read.table("../data/chewbbaca/complete_results/mdata_stats.tsv",
                          sep = "\t",
                          header = TRUE,
-                         stringsAsFactors = FALSE) %>%
-  filter(FILE != "2016-02-415_S208_pilon_spades.fasta")
+                         stringsAsFactors = FALSE)
 
 detailed_cgmlst_stats <- read.table("../data/chewbbaca/results_statistics.tsv",
                                     sep = "\t",
                                     header = TRUE,
                                     stringsAsFactors = FALSE) %>%
-  filter(Genome != "2016-02-415_S208_pilon_spades.fasta")
+  mutate(sums = rowSums(.[,4:8]))
 
 cgMLST_allele_data <- read.table("../data/chewbbaca/complete_results/cgMLST.tsv",
                               sep = "\t",
@@ -99,7 +97,7 @@ boxplot(cgmlst_stats$number.of.missing.data,
 
 Below follows the detailed results for all loci in the cgMLST scheme. EXC = excact matches, INF = novel allele, LNF = locus not found, NIPH = paralogous locus, PLOT = possible loci on tip of contig, ALM = allele 20 % larger than reference, ASM = allele 20 % smaller than reference. The numbers below each boxplot denote the mean.
 
-```{r}
+```{r, message=FALSE, warning=FALSE}
 test <- detailed_cgmlst_stats %>%
   gather(metric, value, -Genome) %>%
   group_by(metric) %>%
