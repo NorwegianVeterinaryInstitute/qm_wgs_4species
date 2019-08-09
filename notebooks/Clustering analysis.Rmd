@@ -23,14 +23,15 @@ output:
 library(dplyr)
 library(tidyr)
 library(ggplot2)
-library(ggtree)
-library(cluster)
-library(Biostrings)
 library(ape)
 library(tibble)
 library(knitr)
 library(vegan)
 library(distanceR)
+library(impoRt)
+library(readxl)
+library(treeio)
+library(kableExtra)
 ```
 
 
@@ -63,512 +64,192 @@ isolate_data <- read.table("../data/isolate_data.txt",
   filter(id %not_in% ex_samples)
 
 
-# cgMLST data
-cgmlst_stats <- read.table("../data/chewbbaca/complete_results/mdata_stats.tsv",
-                         sep = "\t",
-                         header = TRUE,
-                         stringsAsFactors = FALSE)
-
-detailed_cgmlst_stats <- read.table("../data/chewbbaca/results_statistics.tsv",
-                                    sep = "\t",
-                                    header = TRUE,
-                                    stringsAsFactors = FALSE) %>%
-  mutate(sums = rowSums(.[,4:8]))
-
-cgMLST_allele_data <- read.table("../data/chewbbaca/complete_results/cgMLST.tsv",
-                              sep = "\t",
-                              header = TRUE,
-                              stringsAsFactors = FALSE) %>%
-  mutate(FILE = sub("_pilon_spades.fasta", "", FILE)) %>%
-  dplyr::rename("ref" = FILE) %>%
-  left_join(id_data, by = "ref") %>%
-  select(id, everything(), -ref) %>%
-  filter(id %not_in% ex_samples)
-```
-
-# Core genome MLST schema and quality control
-The _E. coli_ scheme from Enterobase [1] was used with chewBBACA [2] to get the cgMLST profile for each isolate.
-The number of missing loci in total (sum of LNF, NIPH, PLOT, ALM and ASM from chewBBACA) is plotted below for all isolates.
-
-```{r cgMLST stats}
-boxplot(cgmlst_stats$number.of.missing.data,
-        ylab = "Number of missing loci")
-```
-
-Below follows the detailed results for all loci in the cgMLST scheme. EXC = excact matches, INF = novel allele, LNF = locus not found, NIPH = paralogous locus, PLOT = possible loci on tip of contig, ALM = allele 20 % larger than reference, ASM = allele 20 % smaller than reference. The numbers below each boxplot denote the mean.
-
-```{r, message=FALSE, warning=FALSE}
-test <- detailed_cgmlst_stats %>%
-  gather(metric, value, -Genome) %>%
-  group_by(metric) %>%
-  mutate(mean_val = round(mean(value), 1))
-
-ggplot(test, aes(metric, value)) +
-  stat_boxplot(geom = "errorbar", width = 0.5) +
-  geom_boxplot() +
-  geom_text(data = subset(test,
-                          Genome == "2006-01-2184_S30_pilon_spades.fasta"),
-            aes(label = mean_val),
-            y = -60,
-            size = 3.8) +
-  scale_x_discrete(limits = c("EXC",
-                              "INF",
-                              "LNF",
-                              "NIPH",
-                              "PLOT",
-                              "ALM",
-                              "ASM")) +
-  labs(y = "Number of loci") +
-  theme(axis.title.x = element_blank(),
-        axis.ticks.x = element_blank())
 ```
 
 # Minimum spanning tree
-A minimum spanning tree calculated from the cgMLST data with GrapeTree [3] using MSTreeV2. Number of allele differences are denoted as numbers on branches between nodes. The branches have been collapsed on ten differences or less. The number inside each node is the sequence type based on the Warwick 7-gene MLST scheme [4].
+The EnteroBase cgMLST scheme [1] for _E. coli_ was used with chewBBACA [2] to generate the cgMLST data.
+A minimum spanning tree calculated from the cgMLST data with GrapeTree [3] using MSTreeV2. Number of allele differences are denoted as numbers on branches between nodes. The branches have been collapsed on ten differences or less. The number inside each node is the sequence type based on the EnteroBase 7-gene MLST scheme [4].
 ```{r, fig.width=15, fig.height=12}
 include_graphics("../figures/GrapeTree_cgMLST.png")
 ```
 
-# Allele distance distribution
-Basic statistics are presented in the table.
-```{r, message=FALSE, warning=FALSE}
-# calculates distances from cgMLST data and returns
-# the lower triangular of the matrix, with (diag = FALSE)
-# or without (diag = TRUE) the diagonal
-lower_tri_dist_calc <- function(data, diag = TRUE, data_frame = FALSE) {
-  dist <- as.matrix(daisy(data, metric = "gower"))
-  if (diag == TRUE) {
-    dist[upper.tri(dist, diag = TRUE)] <- NA
-  } else {
-    dist[upper.tri(dist, diag = FALSE)] <- NA
-  }
-  dist_vec <- as.vector(as.matrix(dist))
-  dist_compl <- dist_vec[!is.na(dist_vec)]
-  
-  if (data_frame == TRUE) {
-    dist_compl <- as.data.frame(as.matrix(dist))
-  }
-  return(dist_compl)
-}
+# SNP distance statistics on clades of interest
+The table presents the summary statistics on the minimum SNP distance to the closest isolate per clade of interest.
+```{r}
+dist_data <- get_data("../data/Phylogeny/STs",
+                      "gubbins_snp_dists.tab",
+                      recursive = TRUE,
+                      df = FALSE)
 
-broiler_cgMLST <- read.table("../data/chewbbaca/complete_results/cgMLST_broiler.tsv",
-                           sep = "\t",
-                           header = TRUE,
-                           colClasses = "factor",
-                           row.names = 1)
+names(dist_data) <- c("ST10", "ST117", "ST162", "ST355", "ST58", "ST602", "ST744")
 
-pig_cgMLST <- read.table("../data/chewbbaca/complete_results/cgMLST_pig.tsv",
-                           sep = "\t",
-                           header = TRUE,
-                           colClasses = "factor",
-                           row.names = 1)
+dist_clean <- lapply(dist_data, function(x){
+  x %>%
+    dplyr::rename("isol1" = `snp-dists 0.6.3`) %>%
+    gather(isol2, value, -isol1) %>%
+    filter(isol1 != isol2) %>%
+    group_by(isol2) %>%
+    mutate(min_val = min(value))
+})
 
-fox_cgMLST <- read.table("../data/chewbbaca/complete_results/cgMLST_fox.tsv",
-                           sep = "\t",
-                           header = TRUE,
-                           colClasses = "factor",
-                           row.names = 1)
+summary_list <- lapply(dist_clean, function(x) round(summary(x$min_val),0)) %>%
+  bind_rows()
 
-bird_cgMLST <- read.table("../data/chewbbaca/complete_results/cgMLST_bird.tsv",
-                           sep = "\t",
-                           header = TRUE,
-                           colClasses = "factor",
-                           row.names = 1)
+summary_list$Type <- c("Min","1st.Q","Median","Mean","3rd.Q","Max")
 
-broiler_dist <- lower_tri_dist_calc(broiler_cgMLST)
-pig_dist <- lower_tri_dist_calc(pig_cgMLST)
-fox_dist <- lower_tri_dist_calc(fox_cgMLST)
-bird_dist <- lower_tri_dist_calc(bird_cgMLST)
-
-
-# Distance plots
-par(mfrow = c(2,2))
-
-x1 <- hist(broiler_dist,
-     breaks = 20,
-     plot = FALSE)
-
-x1$density = x1$counts/sum(x1$counts)*100
-
-plot(x1,
-     freq = FALSE,
-     main = "Broiler distance frequency",
-     xlab = "Distance",
-     ylim = c(0, 50))
-
-
-x2 <- hist(pig_dist,
-     breaks = 20,
-     plot = FALSE)
-
-x2$density = x2$counts/sum(x2$counts)*100
-
-plot(x2,
-     freq = FALSE,
-     main = "Pig distance frequency",
-     xlab = "Distance",
-     ylim = c(0, 50))
-
-x3 <- hist(fox_dist,
-     breaks = 20,
-     plot = FALSE)
-
-x3$density = x3$counts/sum(x3$counts)*100
-
-plot(x3,
-     freq = FALSE,
-     main = "Red fox distance frequency",
-     xlab = "Distance",
-     ylim = c(0, 50))
-
-
-x4 <- hist(bird_dist,
-     breaks = 20,
-     plot = FALSE)
-
-x4$density = x4$counts/sum(x4$counts)*100
-
-plot(x4,
-     freq = FALSE,
-     main = "Wild bird distance frequency",
-     xlab = "Distance",
-     ylim = c(0, 50))
-
-
-# generate data frame from allele data
-alleles <- cgMLST_allele_data %>%
-  left_join(isolate_data[,c("id","species")], by = "id") %>%
-  group_by(species) %>%
-  mutate(n = 1:n(),
-         new_id = case_when(species == "Broiler" ~ paste("BR", n, sep = "_"),
-                            species == "Pig" ~ paste("PI", n, sep = "_"),
-                            species == "Red fox" ~ paste("RF", n, sep = "_"),
-                            species == "Wild bird" ~ paste("WB", n, sep = "_"))) %>%
-  ungroup() %>%
-  select(new_id, everything(), -c(species, id)) %>%
-  mutate_all(funs(as.factor)) %>%
-  column_to_rownames("new_id")
-
-# generate data frame for iteration analysis
-run_df <- lower_tri_dist_calc(alleles, data_frame = TRUE) %>%
-  rownames_to_column("id") %>%
-  gather(isolate1, value, -id) %>%
-  dplyr::rename("isolate2" = id) %>%
-  mutate(group1 = substr(isolate1, start = 1, stop = 2),
-         group2 = substr(isolate2, start = 1, stop = 2)) %>%
-  select(isolate1, group1, isolate2, group2, value) %>%
-  filter(is.na(value) == FALSE,
-         group1 == group2) %>%
-  arrange(group1, group2)
-
-run_df %>%
-  mutate(total_mean = round(mean(value), 3)) %>%
-  group_by(group1) %>%
-  mutate(mean = round(mean(value), 3),
-         var = round(var(value), 3)) %>%
-  select(group1, total_mean, mean, var) %>%
-  summarise_all(funs(func_paste))
-```
-
-# Distribution of iterated distances
-Distribution of percentages of distances < 0.1 or > 0.8. The distribution is based on 1000 iterations of the distance data. Observed values are denoted as arrows for each animal species; dark blue = Broiler, light blue = Pig, red = Red fox, yellow = Wild bird. The mean value is denoted as a vertical black line.
-```{r, warning=FALSE, message=FALSE, dpi=300}
-# functions used in iteration analyses
-
-## Calculates the sum of observations lower than dist_value1 and
-## bigger than dist_value2, and calculates the percentage of
-## observed values for each group
-without <- function(df, run, dist_value1 = 0.1, dist_value2 = 0.8) {
-  df <- df %>%
-    group_by(group1, group2) %>%
-    mutate(n = value < dist_value1 | value > dist_value2) %>%
-    group_by(group1, group2, n) %>%
-    count() %>%
-    ungroup() %>%
-    mutate(n = ifelse(n == TRUE, "Within", "Without")) %>%
-    spread(n, nn) %>%
-    mutate(Percent = round(Within / (Within + Without) * 100, 2),
-           iter = run)
-  return(df)
-}
-
-## Calculates the sum of observations between dist_value1 and dist_value2
-## and calculates the percentage of observed values for each group
-within <- function(df, run, dist_value1 = 0.1, dist_value2 = 0.8) {
-  df <- df %>%
-    group_by(group1, group2) %>%
-    mutate(n = value > dist_value1 & value < dist_value2) %>%
-    group_by(group1, group2, n) %>%
-    count() %>%
-    ungroup() %>%
-    mutate(n = ifelse(n == TRUE, "Within", "Without")) %>%
-    spread(n, nn) %>%
-    mutate(Percent = round(Within / (Within + Without) * 100, 2),
-           iter = run)
-  return(df)
-}
-
-## Calculates the sum of observations below dist_value1
-## for each group
-below_calc <- function(df, run, dist_value1 = 0.1) {
-  df <- df %>%
-    group_by(group1, group2) %>%
-    mutate(n = value < dist_value1) %>%
-    group_by(group1, group2, n) %>%
-    count() %>%
-    ungroup() %>%
-    mutate(n = ifelse(n == TRUE, "Below", "Above")) %>%
-    spread(n, nn) %>%
-    mutate(Below = ifelse(is.na(Below) == TRUE, 0, Below)) %>%
-    mutate(Percent_below = round(Below / (Above + Below) * 100, 2),
-           iter = run)
-  return(df)
-}
-
-## Calculates the sum of observations above dist_value1
-## for each group
-above_calc <- function(df, run, dist_value1 = 0.9) {
-  df <- df %>%
-    group_by(group1, group2) %>%
-    mutate(n = value > dist_value1) %>%
-    group_by(group1, group2, n) %>%
-    count() %>%
-    ungroup() %>%
-    mutate(n = ifelse(n == TRUE, "Above", "Below")) %>%
-    spread(n, nn) %>%
-    mutate(Above = ifelse(is.na(Above) == TRUE, 0, Above)) %>%
-    mutate(Percent_above = round(Above / (Above + Below) * 100, 2),
-           iter = run)
-  return(df)
-}
-
-## Calculates the mean of observations for each group
-mean_calc <- function(df, run) {
-  df <- df %>%
-    group_by(group1, group2) %>%
-    mutate(metric = round(mean(value), 2)) %>%
-    select(group1, group2, metric) %>%
-    summarise_all(funs(func_paste)) %>%
-    mutate(iter = run,
-           metric = as.numeric(metric))
-}
-
-## Calculates the median of observations for each group
-median_calc <- function(df, run) {
-  df <- df %>%
-    group_by(group1, group2) %>%
-    mutate(metric = round(median(value), 2)) %>%
-    select(group1, group2, metric) %>%
-    summarise_all(funs(func_paste)) %>%
-    mutate(iter = run,
-           metric = as.numeric(metric))
-}
-
-## Calculates the quantiles of the observations for each group
-quantile_calc <- function(df, run) {
-  df <- df %>%
-    group_by(group1, group2) %>%
-    mutate(quant_0 = quantile(value)[1],
-           quant_25 = quantile(value)[2],
-           quant_50 = quantile(value)[3],
-           quant_75 = quantile(value)[4],
-           quant_100 = quantile(value)[5]) %>%
-    select(group1, group2, contains("quant")) %>%
-    summarise_all(funs(func_paste)) %>%
-    mutate_at(vars(contains("quant")),
-              funs(as.numeric)) %>%
-    mutate(iter = run)
-}
-
-# Iteration function
-iterate_samples <- function(df, run, method = "mean", dist_value1, dist_value2) {
-
-  # randomize the value column, regardless of groups
-  df <- df %>%
-    mutate(value = sample(value))
-
-  # run specified function
-  if (method == "mean") {
-    df <- mean_calc(df, run)
-    }
-
-  if (method == "below") {
-   df <- below_calc(df, run, dist_value1)
-    }
-
-  if (method == "above") {
-   df <- above_calc(df, run, dist_value1)
-    }
-
-  if (method == "within") {
-    df <- within(df, run, dist_value1, dist_value2)
-    }
-
-  if (method == "without") {
-    df <- without(df, run, dist_value1, dist_value2)
-    }
-  
-  if (method == "median") {
-    df <- median_calc(df, run)
-    }
-  
-  if (method == "quantile") {
-    df <- quantile_calc(df, run)
-  }
-    
-    return(df)
-}
-
-# run iterations on selected data frame
-run_iterations <- function(df, runs = 1000, seed = 10, method = "mean", dist_value1, dist_value2) {
-  # set seed
-  set.seed(seed)
-  
-  # create output list
-  output <- list()
-  
-  # create expected values
-  if (method == "mean") {
-    orig <- mean_calc(df, 0)
-    }
-
-  if (method == "below") {
-   orig <- below_calc(df, 0, dist_value1)
-    }
-
-  if (method == "above") {
-   orig <- above_calc(df, 0, dist_value1)
-    }
-  
-  if (method == "within") {
-    orig <- within(df, 0, dist_value1, dist_value2)
-    }
-
-  if (method == "without") {
-    orig <- without(df, 0, dist_value1, dist_value2)
-    }
-
-  if (method == "median") {
-    orig <- median_calc(df, 0)
-    }
-
-  if (method == "quantile") {
-    orig <- quantile_calc(df, 0)
-  }
-
-  output <- c(output, list(orig))
-  
-  # run iterations
-  for (i in 1:runs) {
-    result <- iterate_samples(df,
-                              i,
-                              method = method,
-                              dist_value1 = dist_value1,
-                              dist_value2 = dist_value2)
-    output <- c(output, list(result))
-    }
-  return(output)
-}
-
-# Run functions
-
-complete_data <- run_iterations(run_df,
-                                runs = 1000,
-                                method = "without",
-                                dist_value1 = 0.1,
-                                dist_value2 = 0.8) %>%
-  bind_rows() %>%
-  mutate(Percent = as.numeric(Percent))
-
-lower_data <- run_iterations(run_df,
-                             runs = 1000,
-                             method = "below",
-                             dist_value1 = 0.1) %>%
-  bind_rows() %>%
-  mutate(Percent_below = as.numeric(Percent_below))
-
-
-# Plots
-
-ggplot(complete_data, aes(Percent)) +
-  geom_histogram(aes(y = ..density..), binwidth = 0.2, color = "black",
-                fill = "grey80") +
-  stat_function(fun = dnorm,
-                args = with(complete_data, c(mean = mean(Percent), sd = sd(Percent))),
-                color = "red") +
-  geom_segment(aes(x = complete_data$Percent[1],
-                   xend = complete_data$Percent[1], y = 0.08, yend = 0),
-               arrow = arrow(length = unit(0.3, "cm"),
-                             type = "closed"),
-               color = "#4575b4") +
-  geom_segment(aes(x = complete_data$Percent[2],
-                   xend = complete_data$Percent[2], y = 0.08, yend = 0),
-               arrow = arrow(length = unit(0.3, "cm"),
-                             type = "closed"),
-               color = "#74add1") +
-  geom_segment(aes(x = complete_data$Percent[3],
-                   xend = complete_data$Percent[3], y = 0.08, yend = 0),
-               arrow = arrow(length = unit(0.3, "cm"),
-                             type = "closed"),
-               color = "#f46d43") +
-  geom_segment(aes(x = complete_data$Percent[4],
-                   xend = complete_data$Percent[4], y = 0.08, yend = 0),
-               arrow = arrow(length = unit(0.3, "cm"),
-                             type = "closed"),
-               color = "#fdae61") +
-  geom_text(label = "p < 0.001",
-            x = 83.30,
-            y = 0.16,
-            angle = 90) +
-  geom_vline(xintercept = mean(complete_data$Percent),
-             size = 1) +
-  labs(x = "Percent (%) distances < 0.1 or > 0.8",
-       y = "Density") +
-  ggtitle(label = "Distribution of percentages",
-          subtitle = "Number of iterations: 1000") +
-  theme(plot.title = element_text(hjust = 0))
-
-
-
-ggplot(lower_data, aes(Percent_below)) +
-  geom_histogram(aes(y = ..density..), binwidth = 0.2, color = "black",
-                fill = "grey80") +
-  stat_function(fun = dnorm,
-                args = with(lower_data, c(mean = mean(Percent_below), sd = sd(Percent_below))),
-                color = "red") +
-  geom_segment(aes(x = lower_data$Percent_below[1],
-                   xend = lower_data$Percent_below[1], y = 0.15, yend = 0),
-               arrow = arrow(length = unit(0.3, "cm"),
-                             type = "closed"),
-               color = "#4575b4") +
-  geom_segment(aes(x = lower_data$Percent_below[2],
-                   xend = lower_data$Percent_below[2], y = 0.15, yend = 0),
-               arrow = arrow(length = unit(0.3, "cm"),
-                             type = "closed"),
-               color = "#74add1") +
-  geom_segment(aes(x = lower_data$Percent_below[3],
-                   xend = lower_data$Percent_below[3], y = 0.15, yend = 0),
-               arrow = arrow(length = unit(0.3, "cm"),
-                             type = "closed"),
-               color = "#f46d43") +
-  geom_segment(aes(x = lower_data$Percent_below[4],
-                   xend = lower_data$Percent_below[4], y = 0.15, yend = 0),
-               arrow = arrow(length = unit(0.3, "cm"),
-                             type = "closed"),
-               color = "#fdae61") +
-  geom_text(label = "p < 0.001",
-            x = 5.87,
-            y = 0.32,
-            angle = 90) +
-  geom_vline(xintercept = mean(lower_data$Percent_below),
-             size = 1) +
-  labs(x = "Percent (%) distances < 0.1",
-       y = "Density") +
-  ggtitle(label = "Distribution of Percentages",
-          subtitle = "Number of iterations: 1000") +
-  theme(plot.title = element_text(hjust = 0))
+summary_list %>%
+  select(Type, everything()) %>%
+  kable() %>%
+  kable_styling(bootstrap_options = c("striped", "hover"))
 
 ```
+
+# Maximum likelihood trees on clades of interest
+Each tree is midpoint rooted for visual purposes. The values on each node is the UF Bootstrap values calculated by IQTree. The tip point shape represents the year of isolation, and the color the animal species of origin. The tip labels represent the location of the isolate; the first number represent the county, and the second number the municipality. 
+```{r message=FALSE, warning=FALSE}
+# Import isolate information and tree metadata
+isol_info <- read.table("../data/id.txt",
+                        sep = "\t",
+                        header = TRUE,
+                        stringsAsFactors = FALSE)
+
+location_data <- read_excel("../data/st_location_data.xlsx") %>%
+  select(id, Kommune, Fylke) %>%
+  mutate(fyl_id = group_indices(., Fylke),
+         kom_id = group_indices(., Kommune)) %>%
+  mutate(Location = paste(fyl_id, kom_id, sep = "-")) %>%
+  select(id, Location)
+
+tree_metadata <- read.table("../data/chewbbaca/complete_results/tree_metadata.txt",
+                            sep = "\t",
+                            header = TRUE) %>%
+  left_join(location_data, by = "id") %>%
+  mutate(Year = substr(id, 1, 4)) %>%
+  dplyr::rename("Species" = species)
+
+
+# Import trees
+ST10_raw <- read.iqtree("../data/Phylogeny/STs/ST10/iqtree/iqtree.contree")
+ST355_raw <- read.iqtree("../data/Phylogeny/STs/ST355/iqtree/iqtree.contree")
+ST602_raw <- read.iqtree("../data/Phylogeny/STs/ST602/iqtree/iqtree.contree")
+ST744_raw <- read.iqtree("../data/Phylogeny/STs/ST744/iqtree/iqtree.contree")
+
+raw_trees <- list(ST10_raw,
+                  ST355_raw,
+                  ST602_raw,
+                  ST744_raw)
+
+names(raw_trees) <- c("ST10","ST355","ST602","ST744")
+
+# Clean tree tip labels
+clean_trees <- lapply(
+  raw_trees,
+  function(x) fix_tip_labels(
+    x,
+    isol_info,
+    "_pilon_spades.fasta",
+    tree_type = "treedata"
+    )
+  )
+
+# Specify color palette
+palette <- c("Broiler" = "#4575b4",
+             "Pig" = "#74add1",
+             "Red fox" = "#f46d43",
+             "Wild bird" = "#fdae61")
+
+# Generate trees
+annotate_tree(
+  clean_trees$ST10,
+  tree_metadata,
+  layout = "rectangular",
+  tree_type = "treedata",
+  midroot = TRUE,
+  line_width = 0.5,
+  label_variable = "Location",
+  color_variable = "Species",
+  shape_variable = "Year",
+  clade_label_node = 22,
+  clade_label = "10 SNP diff",
+  cladelabel_offset = 0.00055,
+  bootstrap_lab = TRUE,
+  tippoint_size = 4,
+  nodepoint_size = 2,
+  label_offset = 0.0001,
+  own_palette = palette
+) +
+  xlim(0, 0.005) +
+  ggtitle("ST10 Clade")
+
+annotate_tree(
+  clean_trees$ST355,
+  tree_metadata,
+  layout = "rectangular",
+  tree_type = "treedata",
+  midroot = TRUE,
+  line_width = 0.5,
+  label_variable = "Location",
+  color_variable = "Species",
+  shape_variable = "Year",
+  clade_label_node = 23,
+  clade_label = "3 SNP diff",
+  cladelabel_offset = 0.0013,
+  bootstrap_lab = TRUE,
+  tippoint_size = 4,
+  nodepoint_size = 2,
+  label_offset = 0.0003,
+  own_palette = palette
+) +
+  xlim(0, 0.0165) +
+  ggtitle("ST355 Clade")
+
+annotate_tree(
+  clean_trees$ST602,
+  tree_metadata,
+  layout = "rectangular",
+  tree_type = "treedata",
+  midroot = TRUE,
+  line_width = 0.5,
+  label_variable = "Location",
+  color_variable = "Species",
+  shape_variable = "Year",
+  clade_label_node = 10,
+  clade_label = "18 SNP diff",
+  cladelabel_offset = 0.001,
+  bootstrap_lab = TRUE,
+  tippoint_size = 4,
+  nodepoint_size = 2,
+  label_offset = 0.0002,
+  own_palette = palette
+) +
+  xlim(0, 0.009) +
+  ggtitle("ST602 Clade")
+
+annotate_tree(
+  clean_trees$ST744,
+  tree_metadata,
+  layout = "rectangular",
+  tree_type = "treedata",
+  midroot = TRUE,
+  line_width = 0.5,
+  label_variable = "Location",
+  color_variable = "Species",
+  shape_variable = "Year",
+  clade_label_node = 12,
+  clade_label = "50 SNP diff",
+  cladelabel_offset = 0.00024,
+  bootstrap_lab = TRUE,
+  tippoint_size = 4,
+  nodepoint_size = 2,
+  label_offset = 0.00007,
+  own_palette = palette
+) +
+  xlim(0, 0.0030) +
+  ggtitle("ST744 Clade")
+
+```
+
+
 
 # NMDS Analysis of resistance mechanisms
 Non-metric multidimensional scaling (NMDS) was used to see if the distribution of quinolone resistance mechanisms from some sequence types were more homogenous than in other sequence types.
