@@ -21,7 +21,7 @@ Supplementary material for the article "Closely related quinolone resistant Esch
 
 [Additional Tables](/notebooks/article_notebook2.html)
 
-[cgMLST clustering](/notebooks/Clustering_analysis.html)
+[Clustering, phylogeny and statistics](/notebooks/Clustering-analysis.html)
 
 
 ## Reference sequences
