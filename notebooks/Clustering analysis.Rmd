@@ -31,6 +31,8 @@ library(distanceR)
 library(impoRt)
 library(readxl)
 library(treeio)
+library(adephylo)
+library(RColorBrewer)
 library(kableExtra)
 ```
 
@@ -63,6 +65,10 @@ isolate_data <- read.table("../data/isolate_data.txt",
                            stringsAsFactors = F) %>%
   filter(id %not_in% ex_samples)
 
+mlst_data <- read.table("../data/mlst_results.txt",
+                        sep = "\t",
+                        header = TRUE,
+                        stringsAsFactors = F)
 
 ```
 
@@ -71,6 +77,57 @@ The EnteroBase cgMLST scheme [1] for _E. coli_ was used with chewBBACA [2] to ge
 A minimum spanning tree calculated from the cgMLST data with GrapeTree [3] using MSTreeV2. Number of allele differences are denoted as numbers on branches between nodes. The branches have been collapsed on ten differences or less. The number inside each node is the sequence type based on the EnteroBase 7-gene MLST scheme [4].
 ```{r, fig.width=15, fig.height=12}
 include_graphics("../figures/GrapeTree_cgMLST.png")
+```
+
+# Patristic distances
+Patristic distances were calculated from the core gene alignment SNP tree.
+```{r fig.width=8, fig.height=8, warning=FALSE, message=FALSE}
+iqtree <- read.tree("../data/IQTree/core_genes_roary.treefile")
+iqtree_clean <- fix_tip_labels(iqtree, id_data, "_pilon_spades.fasta", tree_type = "phylo")
+
+pat_dist <- as.matrix(distTips(iqtree_clean, method = "patristic"))
+
+pat_dist_bin <- as.data.frame(ifelse(pat_dist < 0.04, "1", "0")) %>%
+  rownames_to_column("isol1")
+
+row_val <- as.data.frame(pat_dist_bin$isol1) %>%
+  rename("id" = `pat_dist_bin$isol1`) %>%
+  left_join(mlst_data[,c("id","ST")], by = "id") %>%
+  group_by(ST) %>%
+  mutate(n = 1:n(),
+         new_id = paste(ST, n, sep = "_"))
+
+col_val <- as.data.frame(names(pat_dist_bin)) %>%
+  rename("id" = `names(pat_dist_bin)`) %>%
+  left_join(mlst_data[,c("id","ST")], by = "id") %>%
+  group_by(ST) %>%
+  mutate(n = 1:n(),
+         new_id = paste(ST, n, sep = "_")) %>%
+  ungroup() %>%
+  mutate(new_id = ifelse(new_id == "NA_1", "isol1", new_id),
+         ST = ifelse(is.na(ST) == TRUE, "isol1", ST))
+
+pat_dist_clean <- pat_dist_bin
+names(pat_dist_clean) <- col_val$new_id
+pat_dist_clean$isol1 <- row_val$new_id
+
+plot_data <- pat_dist_clean %>%
+  gather(isol2, value, -isol1) %>%
+  filter(isol1 != isol2)
+
+ggplot(plot_data, aes(reorder(isol1, -as.numeric(value)), reorder(isol2, -as.numeric(value)), fill = value)) +
+  geom_tile() +
+  scale_fill_manual(values = c("1" = "#80b1d3",
+                               "0" = "grey95"),
+                    labels = c("Pat. dist > 0.04",
+                               "Pat. dist < 0.04")) +
+  labs(fill = NULL) +
+  theme(axis.text = element_text(size = 3),
+        axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.3),
+        panel.background = element_blank(),
+        axis.ticks = element_blank(),
+        axis.title = element_blank()) +
+  coord_fixed()
 ```
 
 # SNP distance statistics on clades of interest
@@ -105,14 +162,9 @@ summary_list %>%
 ```
 
 # Maximum likelihood trees on clades of interest
-Each tree is midpoint rooted for visual purposes. The values on each node is the UF Bootstrap values calculated by IQTree. The tip point shape represents the year of isolation, and the color the animal species of origin. The tip labels represent the location of the isolate; the first number represent the county, and the second number the municipality. 
+Each tree is midpoint rooted for visual purposes. The values on each node is the UF Bootstrap values calculated by IQTree. The tip point shape represent the animal species of origin, and the color the year of isolation. The tip labels represent the location of the isolate; the first number represent the county, and the second number the municipality. 
 ```{r message=FALSE, warning=FALSE}
 # Import isolate information and tree metadata
-isol_info <- read.table("../data/id.txt",
-                        sep = "\t",
-                        header = TRUE,
-                        stringsAsFactors = FALSE)
-
 location_data <- read_excel("../data/st_location_data.xlsx") %>%
   select(id, Kommune, Fylke) %>%
   mutate(fyl_id = group_indices(., Fylke),
@@ -146,17 +198,36 @@ clean_trees <- lapply(
   raw_trees,
   function(x) fix_tip_labels(
     x,
-    isol_info,
+    id_data,
     "_pilon_spades.fasta",
     tree_type = "treedata"
     )
   )
 
-# Specify color palette
-palette <- c("Broiler" = "#4575b4",
-             "Pig" = "#74add1",
-             "Red fox" = "#f46d43",
-             "Wild bird" = "#fdae61")
+# Specify color and shape palettes
+palette_shape <- c(
+  "Broiler" = 15,
+  "Pig" = 18,
+  "Red fox" = 16,
+  "Wild bird" = 17
+)
+
+palette_color <- brewer.pal(11, "Set3")
+
+year_val <- c(
+  "2006",
+  "2007",
+  "2008",
+  "2009",
+  "2010",
+  "2011",
+  "2012",
+  "2013",
+  "2014",
+  "2015",
+  "2016")
+
+names(palette_color) <- year_val
 
 # Generate trees
 annotate_tree(
@@ -167,16 +238,17 @@ annotate_tree(
   midroot = TRUE,
   line_width = 0.5,
   label_variable = "Location",
-  color_variable = "Species",
-  shape_variable = "Year",
-  clade_label_node = 22,
+  color_variable = "Year",
+  shape_variable = "Species",
+  clade_label_node = 19,
   clade_label = "10 SNP diff",
   cladelabel_offset = 0.00055,
   bootstrap_lab = TRUE,
+  bootlab_size = 2,
   tippoint_size = 4,
-  nodepoint_size = 2,
   label_offset = 0.0001,
-  own_palette = palette
+  shape_palette = palette_shape,
+  color_palette = palette_color
 ) +
   xlim(0, 0.005) +
   ggtitle("ST10 Clade")
@@ -189,16 +261,17 @@ annotate_tree(
   midroot = TRUE,
   line_width = 0.5,
   label_variable = "Location",
-  color_variable = "Species",
-  shape_variable = "Year",
-  clade_label_node = 23,
-  clade_label = "3 SNP diff",
+  color_variable = "Year",
+  shape_variable = "Species",
+  clade_label_node = 26,
+  clade_label = "6 SNP diff",
   cladelabel_offset = 0.0013,
   bootstrap_lab = TRUE,
+  bootlab_size = 2,
   tippoint_size = 4,
-  nodepoint_size = 2,
   label_offset = 0.0003,
-  own_palette = palette
+  shape_palette = palette_shape,
+  color_palette = palette_color
 ) +
   xlim(0, 0.0165) +
   ggtitle("ST355 Clade")
@@ -211,16 +284,17 @@ annotate_tree(
   midroot = TRUE,
   line_width = 0.5,
   label_variable = "Location",
-  color_variable = "Species",
-  shape_variable = "Year",
+  color_variable = "Year",
+  shape_variable = "Species",
   clade_label_node = 10,
   clade_label = "18 SNP diff",
   cladelabel_offset = 0.001,
   bootstrap_lab = TRUE,
+  bootlab_size = 2,
   tippoint_size = 4,
-  nodepoint_size = 2,
   label_offset = 0.0002,
-  own_palette = palette
+  shape_palette = palette_shape,
+  color_palette = palette_color
 ) +
   xlim(0, 0.009) +
   ggtitle("ST602 Clade")
@@ -233,16 +307,17 @@ annotate_tree(
   midroot = TRUE,
   line_width = 0.5,
   label_variable = "Location",
-  color_variable = "Species",
-  shape_variable = "Year",
+  color_variable = "Year",
+  shape_variable = "Species",
   clade_label_node = 12,
   clade_label = "50 SNP diff",
   cladelabel_offset = 0.00024,
   bootstrap_lab = TRUE,
+  bootlab_size = 2,
   tippoint_size = 4,
-  nodepoint_size = 2,
   label_offset = 0.00007,
-  own_palette = palette
+  shape_palette = palette_shape,
+  color_palette = palette_color
 ) +
   xlim(0, 0.0030) +
   ggtitle("ST744 Clade")
