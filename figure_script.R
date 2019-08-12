@@ -8,229 +8,6 @@ library(vegan)
 library(cluster)
 library(ape)
 
-## Total dendrogram
-cgMLST_data <- read.table("data/chewbbaca/complete_results/clean_cgMLST_data.txt",
-                          sep = "\t",
-                          header = TRUE,
-                          colClasses = "factor")
-
-total_tree <- as.phylo(hclust(daisy(cgMLST_data, metric = "gower"), method = "average"))
-
-
-tree_metadata <- read.table("data/chewbbaca/complete_results/tree_metadata.txt",
-                            sep = "\t",
-                            header = TRUE)
-
-tree_heatmap_data <- read.table("data/chewbbaca/complete_results/tree_heatmap_data.txt",
-                                sep = "\t",
-                                header = TRUE)
-
-
-palette <- c("Broiler" = "#4575b4",
-             "Pig" = "#74add1",
-             "Red fox" = "#f46d43",
-             "Wild bird" = "#fdae61")
-
-palette2 <- c("1-A" = "#fc8d59",
-              "1-I" = "#80b1d3",
-              "0" = "grey95")
-
-total_tree_annotated <- ggtree(total_tree,
-                               layout = "circular",
-                               color = "#808080",
-                               size = 0.5) %<+% tree_metadata +
-  geom_tippoint(aes(color = species),
-                size = 1.5) +
-  geom_tiplab2(aes(label = ST),
-               offset = 0.01,
-               size = 2.1) +
-  scale_color_manual(values = palette)
-
-total_tree_opened <- rotate_tree(open_tree(total_tree_annotated, 8), 94)
-
-total_tree_heatmap <- gheatmap(
-  total_tree_opened,
-  tree_heatmap_data,
-  offset = 0.04,
-  width = 0.3,
-  colnames_offset_y = 2.5,
-  colnames_position = "top",
-  font.size = 3
-) +
-  scale_fill_manual(
-    values = palette2,
-    labels = c(
-      "Gene/Mutation absent",
-      "Acquired gene present",
-      "Intrinsic gene mutated"
-    )
-  ) +
-  theme(
-    legend.position = c(0.9, 0.9),
-    legend.text = element_text(size = 10)
-  ) +
-  
-  guides(colour = guide_legend(override.aes = list(size=5)))
-
-
-ggsave(
-  "C:/Users/vi1511.VETINST/OneDrive - Veterinærinstituttet/Artikler/qrec_wgs/figures/total_dendrogram.tiff",
-  total_tree_heatmap,
-  device = "tiff",
-  dpi = 600,
-  units = "cm",
-  height = 30,
-  width = 30
-)
-
-
-## Dendrogram per species, detailed
-
-metadata_species <- read.table("data/chewbbaca/complete_results/metadata_species_specific_trees.txt",
-                               sep = "\t",
-                               header = TRUE) %>%
-  select(gyrA, parC, parE, PMQR) %>%
-  dplyr::rename("GyrA" = gyrA,
-                "ParC" = parC,
-                "ParE" = parE)
-
-palette3 <- c("0" = "grey95",
-              # gyrA
-              "S83L" = "#c6dbef",
-              "S83A" = "#9ecae1",
-              "D87N" = "#6baed6",
-              "D87H" = "#4292c6",
-              "D87Y" = "#2171b5",
-              "D87G" = "#08519c",
-              "S83L, D87N" = "#08306b",
-              # parC
-              "S80I" = "#a1d99b",
-              "S80R" = "#74c476",
-              "S57T" = "#41ab5d",
-              "A56T, S80I" = "#238b45",
-              "S80I, E84V" = "#005a32",
-              # parE
-              "D475E" = "#fdd0a2",
-              "D463N" = "#fdae6b",
-              "S458A" = "#fd8d3c",
-              "L416F" = "#f16913",
-              "H516Y" = "#d94801",
-              "L488M, A512T" = "#8c2d04",
-              # PMQR
-              "qnrA1" = "#dadaeb",
-              "qnrB19" = "#bcbddc",
-              "qnrS1" = "#9e9ac8",
-              "qnrS2" = "#807dba",
-              "qnrS4" = "#6a51a3",
-              "qepA4" = "#4a1486")
-
-# Broiler tree
-
-broiler_tree <- calc_tree("data/chewbbaca/complete_results/cgMLST_broiler.tsv")
-
-broiler_tree_annotated <- ggtree(broiler_tree,
-                                 layout = "circular",
-                                 color = "#808080",
-                                 size = 0.5) %<+% tree_metadata +
-  geom_tippoint(color = "#808080",
-                size = 1.5) +
-  geom_tiplab2(aes(label = ST),
-               offset = 0.02,
-               size = 2)
-
-broiler_complete <- gheatmap(broiler_tree_annotated,
-                             metadata_species,
-                             offset = 0.1,
-                             width = 0.5,
-                             colnames = FALSE) +
-  scale_fill_manual(values = palette3) +
-  guides(fill = FALSE)
-
-# Pig tree
-pig_tree <- calc_tree("data/chewbbaca/complete_results/cgMLST_pig.tsv")
-
-pig_tree_annotated <- ggtree(pig_tree,
-                             layout = "circular",
-                             color = "#808080",
-                             size = 0.5) %<+% tree_metadata +
-  geom_tippoint(color = "#808080",
-                size = 1.5) +
-  geom_tiplab2(aes(label = ST),
-               offset = 0.02,
-               size = 2)
-
-pig_complete <- gheatmap(pig_tree_annotated,
-                         metadata_species,
-                         offset = 0.09,
-                         width = 0.5,
-                         colnames = FALSE) +
-  scale_fill_manual(values = palette3) +
-  guides(fill = FALSE)
-
-# Red fox tree
-fox_tree <- calc_tree("data/chewbbaca/complete_results/cgMLST_fox.tsv")
-
-fox_tree_annotated <- ggtree(fox_tree,
-                             layout = "circular",
-                             color = "#808080",
-                             size = 0.5) %<+% tree_metadata +
-  geom_tippoint(color = "#808080",
-                size = 1.5) +
-  geom_tiplab2(aes(label = ST),
-               offset = 0.02,
-               size = 2)
-
-fox_complete <- gheatmap(fox_tree_annotated,
-                         metadata_species,
-                         offset = 0.09,
-                         width = 0.5,
-                         colnames = FALSE) +
-  scale_fill_manual(values = palette3) +
-  guides(fill = FALSE)
-
-# Wild bird tree
-bird_tree <- calc_tree("data/chewbbaca/complete_results/cgMLST_bird.tsv")
-
-bird_tree_annotated <- ggtree(bird_tree,
-                              layout = "circular",
-                              color = "#808080",
-                              size = 0.5) %<+% tree_metadata +
-  geom_tippoint(color = "#808080",
-                size = 1.5) +
-  geom_tiplab2(aes(label = ST),
-               offset = 0.02,
-               size = 2)
-
-bird_complete <- gheatmap(bird_tree_annotated,
-                          metadata_species,
-                          offset = 0.09,
-                          width = 0.5,
-                          colnames = FALSE) +
-  scale_fill_manual(values = palette3) +
-  guides(fill = FALSE)
-
-# Total plot
-tot_plot <- plot_grid(broiler_complete,
-                      pig_complete,
-                      fox_complete,
-                      bird_complete,
-                      nrow = 2,
-                      ncol = 2,
-                      align = "h",
-                      labels = c("Broiler","Pig","Red fox","Wild bird"))
-ggsave(
-  "C:/Users/vi1511.VETINST/OneDrive - Veterinærinstituttet/Artikler/qrec_wgs/figures/test.tiff",
-  tot_plot,
-  device = "tiff",
-  dpi = 600,
-  units = "cm",
-  height = 25,
-  width = 25
-)
-
-
-# Other figures
-
 ## res per species
 gene_names <- names(mut_report)
 
@@ -349,6 +126,165 @@ ggsave(
   height = 20,
   width = 25
 )
+
+# Phylogenetic trees
+
+library(dplyr)
+library(distanceR)
+library(ape)
+library(treeio)
+library(ggtree)
+library(phytools)
+library(readxl)
+
+isol_info <- read.table("data/id.txt",
+                        sep = "\t",
+                        header = TRUE,
+                        stringsAsFactors = FALSE)
+
+ST58_raw <- read.iqtree("data/Phylogeny/STs/ST58/iqtree/iqtree.contree")
+ST117_raw <- read.iqtree("data/Phylogeny/STs/ST117/iqtree/iqtree.contree")
+ST162_raw <- read.iqtree("data/Phylogeny/STs/ST162/iqtree/iqtree.contree")
+
+raw_trees <- list(ST58_raw,
+                  ST117_raw,
+                  ST162_raw)
+
+names(raw_trees) <- c("ST58","ST117","ST162")
+
+clean_trees <- lapply(
+  raw_trees,
+  function(x) fix_tip_labels(
+    x,
+    isol_info,
+    "_pilon_spades.fasta",
+    tree_type = "treedata"
+    )
+  )
+
+location_data <- read_excel("data/st_location_data.xlsx") %>%
+  select(id, Kommune, Fylke) %>%
+  mutate(fyl_id = group_indices(., Fylke),
+         kom_id = group_indices(., Kommune)) %>%
+  mutate(Location = paste(fyl_id, kom_id, sep = "-")) %>%
+  select(id, Location)
+
+tree_metadata <- read.table("data/chewbbaca/complete_results/tree_metadata.txt",
+                            sep = "\t",
+                            header = TRUE) %>%
+  left_join(location_data, by = "id") %>%
+  mutate(Year = substr(id, 1, 4)) %>%
+  dplyr::rename("Species" = species)
+
+palette_shape <- c(
+  "Broiler" = 15,
+  "Pig" = 18,
+  "Red fox" = 16,
+  "Wild bird" = 17
+)
+
+library(RColorBrewer)
+
+palette_color <- brewer.pal(11, "Set3")
+
+year_val <- c(
+  "2006",
+  "2007",
+  "2008",
+  "2009",
+  "2010",
+  "2011",
+  "2012",
+  "2013",
+  "2014",
+  "2015",
+  "2016")
+
+names(palette_color) <- year_val
+
+
+
+library(ggplot2)
+
+p1 <- annotate_tree(
+  clean_trees$ST58,
+  tree_metadata,
+  layout = "rectangular",
+  tree_type = "treedata",
+  midroot = TRUE,
+  line_width = 0.5,
+  label_variable = "Location",
+  color_variable = "Year",
+  shape_variable = "Species",
+  clade_label_node = 32,
+  clade_label = "9 SNP diff",
+  cladelabel_offset = 0.00020,
+  bootstrap_lab = TRUE,
+  bootlab_size = 2,
+  tippoint_size = 4,
+  label_offset = 0.00005,
+  shape_palette = palette_shape,
+  color_palette = palette_color
+) +
+  xlim(0, 0.002) +
+  ggtitle("ST58 Clade")
+
+
+p2 <- annotate_tree(
+  clean_trees$ST117,
+  tree_metadata,
+  layout = "rectangular",
+  tree_type = "treedata",
+  midroot = TRUE,
+  line_width = 0.5,
+  label_variable = "Location",
+  color_variable = "Year",
+  shape_variable = "Species",
+  clade_label_node = 23,
+  clade_label = "37 SNP diff",
+  cladelabel_offset = 0.00022,
+  bootstrap_lab = TRUE,
+  bootlab_size = 2,
+  tippoint_size = 4,
+  label_offset = 0.00005,
+  shape_palette = palette_shape,
+  color_palette = palette_color
+) +
+  xlim(0, 0.0025) +
+  ggtitle("ST117 Clade")
+
+p3 <- annotate_tree(
+  clean_trees$ST162,
+  tree_metadata,
+  layout = "rectangular",
+  tree_type = "treedata",
+  midroot = TRUE,
+  line_width = 0.5,
+  label_variable = "Location",
+  color_variable = "Year",
+  shape_variable = "Species",
+  clade_label_node = 29,
+  clade_label = "12 SNP diff",
+  cladelabel_offset = 0.0038,
+  bootstrap_lab = TRUE,
+  bootlab_size = 2,
+  tippoint_size = 4,
+  label_offset = 0.0005,
+  shape_palette = palette_shape,
+  color_palette = palette_color
+) +
+  xlim(0, 0.042) +
+  ggtitle("ST162 Clade")
+
+
+
+ggsave("ST117.png",
+       p2,
+       device = "png",
+       dpi = 600,
+       units = "cm",
+       height = 25,
+       width = 20)
 
 # NMDS analysis
 
