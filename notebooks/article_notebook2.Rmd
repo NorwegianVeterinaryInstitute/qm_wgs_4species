@@ -172,6 +172,8 @@ R version 3.6.0 [1] was used in the present study. The following packages were u
 | fastqcr       | 0.1.2   |   [18]    |
 | scales        | 1.0.0   |   [19]    |
 | viridis       | 0.5.1   |   [20]    |
+| adephylo      | 1.1-11  |   [21]    |
+
 
 # References
 [1] RCoreTeam. R: A language and environment for statistical computing. R Foundation for Statistical Computing, Vienna, Austria. URL https://www.R-project.org/. 2018.
@@ -213,3 +215,5 @@ R version 3.6.0 [1] was used in the present study. The following packages were u
 [19] Wickham H. scales: Scale Functions for Visualization [Internet]. 2018. Available from: https://cran.r-project.org/package=scales
 
 [20] Garnier S. viridis: Default Color Maps from “matplotlib” [Internet]. 2018. Available from: https://cran.r-project.org/package=viridis
+
+[21] Jombart T., Dray S. (2008) adephylo: exploratory analyses for the phylogenetic comparative method.
