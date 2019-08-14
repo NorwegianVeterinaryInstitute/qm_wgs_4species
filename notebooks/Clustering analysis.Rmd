@@ -23,6 +23,7 @@ output:
 library(dplyr)
 library(tidyr)
 library(ggplot2)
+library(ggtree)
 library(ape)
 library(tibble)
 library(knitr)
@@ -30,8 +31,11 @@ library(vegan)
 library(distanceR)
 library(impoRt)
 library(readxl)
+library(readr)
+library(iteRate)
 library(treeio)
 library(adephylo)
+library(phangorn)
 library(RColorBrewer)
 library(kableExtra)
 ```
@@ -81,53 +85,85 @@ include_graphics("../figures/GrapeTree_cgMLST.png")
 
 # Patristic distances
 Patristic distances were calculated from the core gene alignment SNP tree.
-```{r fig.width=8, fig.height=8, warning=FALSE, message=FALSE}
-iqtree <- read.tree("../data/IQTree/core_genes_roary.treefile")
-iqtree_clean <- fix_tip_labels(iqtree, id_data, "_pilon_spades.fasta", tree_type = "phylo")
+```{r fig.width=12, fig.height=12, warning=FALSE, message=FALSE}
+location_data <- read_excel("../data/st_location_data.xlsx") %>%
+  select(id, Kommune, Fylke) %>%
+  mutate(fyl_id = group_indices(., Fylke),
+         kom_id = group_indices(., Kommune)) %>%
+  mutate(Location = paste(fyl_id, kom_id, sep = "-")) %>%
+  select(id, Location)
 
-pat_dist <- as.matrix(distTips(iqtree_clean, method = "patristic"))
+tree_metadata <- read.table("../data/chewbbaca/complete_results/tree_metadata.txt",
+                            sep = "\t",
+                            header = TRUE) %>%
+  left_join(location_data, by = "id") %>%
+  mutate(Year = substr(id, 1, 4)) %>%
+  dplyr::rename("Species" = species)
 
-pat_dist_bin <- as.data.frame(ifelse(pat_dist < 0.04, "1", "0")) %>%
-  rownames_to_column("isol1")
+iqtree <- read.iqtree("../data/Phylogeny/Roary/iqtree_roary.contree")
+iqtree_clean <- fix_tip_labels(iqtree, id_data, "_pilon_spades.fasta", tree_type = "treedata")
 
-row_val <- as.data.frame(pat_dist_bin$isol1) %>%
-  rename("id" = `pat_dist_bin$isol1`) %>%
-  left_join(mlst_data[,c("id","ST")], by = "id") %>%
-  group_by(ST) %>%
-  mutate(n = 1:n(),
-         new_id = paste(ST, n, sep = "_"))
+pat_dist <- as.matrix(distTips(iqtree_clean@phylo, method = "patristic"))
 
-col_val <- as.data.frame(names(pat_dist_bin)) %>%
-  rename("id" = `names(pat_dist_bin)`) %>%
-  left_join(mlst_data[,c("id","ST")], by = "id") %>%
-  group_by(ST) %>%
-  mutate(n = 1:n(),
-         new_id = paste(ST, n, sep = "_")) %>%
-  ungroup() %>%
-  mutate(new_id = ifelse(new_id == "NA_1", "isol1", new_id),
-         ST = ifelse(is.na(ST) == TRUE, "isol1", ST))
+iqtree_clean@phylo <- midpoint(iqtree_clean@phylo, labels = "support")
 
-pat_dist_clean <- pat_dist_bin
-names(pat_dist_clean) <- col_val$new_id
-pat_dist_clean$isol1 <- row_val$new_id
-
-plot_data <- pat_dist_clean %>%
+pat_dist_id <- as.data.frame(pat_dist) %>%
+  rownames_to_column("isol1") %>%
   gather(isol2, value, -isol1) %>%
-  filter(isol1 != isol2)
+  filter(isol1 != isol2) %>%
+  left_join(tree_metadata, by = c("isol1" = "id")) %>%
+  rename("ST1" = ST,
+         "Species1" = Species,
+         "Location1" = Location,
+         "Year1" = Year) %>%
+  left_join(tree_metadata, by = c("isol2" = "id")) %>%
+  rename("ST2" = ST,
+         "Species2" = Species,
+         "Location2" = Location,
+         "Year2" = Year) %>%
+  filter(value < 0.005) %>%
+  mutate(selection = case_when(Species1 == Species2 & Location1 != Location2 ~ "ss",
+                               Species1 != Species2 & is.na(Location1) == FALSE ~ "as")) %>%
+  filter(selection %in% c("ss", "as"))
 
-ggplot(plot_data, aes(reorder(isol1, -as.numeric(value)), reorder(isol2, -as.numeric(value)), fill = value)) +
-  geom_tile() +
-  scale_fill_manual(values = c("1" = "#80b1d3",
-                               "0" = "grey95"),
-                    labels = c("Pat. dist > 0.04",
-                               "Pat. dist < 0.04")) +
-  labs(fill = NULL) +
-  theme(axis.text = element_text(size = 3),
-        axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.3),
-        panel.background = element_blank(),
-        axis.ticks = element_blank(),
-        axis.title = element_blank()) +
-  coord_fixed()
+tree_metadata <- read.table("../data/chewbbaca/complete_results/tree_metadata.txt",
+                            sep = "\t",
+                            header = TRUE) %>%
+  left_join(location_data, by = "id") %>%
+  mutate(Year = substr(id, 1, 4)) %>%
+  dplyr::rename("Species" = species) %>%
+  mutate(ST_new = ifelse(ST %in% pat_dist_id$ST1, ST, "Other"))
+
+pat_dist_bin <- as.data.frame(ifelse(pat_dist < 0.003, "< 0.003", "> 0.003"))
+
+col_palette <- c("< 0.003" = "#bebada",
+                 "> 0.003" = "grey95")
+
+palette <- c("Broiler" = "#4575b4",
+             "Pig" = "#74add1",
+             "Red fox" = "#f46d43",
+             "Wild bird" = "#fdae61")
+
+p <- ggtree(iqtree_clean) %<+% tree_metadata +
+  geom_tiplab(aes(label = ST),
+              size = 1,
+              align = TRUE) +
+  scale_color_manual(values = palette) +
+  geom_tippoint(aes(color = Species))
+
+gheatmap(p,
+         pat_dist_bin,
+         color = NULL,
+         offset = 0.01,
+         colnames = FALSE) +
+  scale_fill_manual(values = col_palette) + 
+  annotate("label", x = 0.27, y = 270, label = "Clade A") +
+  annotate("label", x = 0.29, y = 251, label = "Clade B") +
+  annotate("label", x = 0.39, y = 167, label = "Clade C") +
+  annotate("label", x = 0.38, y = 138, label = "Clade D") +
+  annotate("label", x = 0.32, y = 57, label = "Clade E") +
+  annotate("label", x = 0.31, y = 31, label = "Clade F")
+
 ```
 
 # SNP distance statistics on clades of interest
@@ -138,7 +174,7 @@ dist_data <- get_data("../data/Phylogeny/STs",
                       recursive = TRUE,
                       df = FALSE)
 
-names(dist_data) <- c("ST10", "ST117", "ST162", "ST355", "ST58", "ST602", "ST744")
+names(dist_data) <- c("Clade D", "Clade F", "Clade A", "Clade E", "Clade B", "Clade C")
 
 dist_clean <- lapply(dist_data, function(x){
   x %>%
@@ -155,7 +191,13 @@ summary_list <- lapply(dist_clean, function(x) round(summary(x$min_val),0)) %>%
 summary_list$Type <- c("Min","1st.Q","Median","Mean","3rd.Q","Max")
 
 summary_list %>%
-  select(Type, everything()) %>%
+  select(Type,
+         `Clade A`,
+         `Clade B`,
+         `Clade C`,
+         `Clade D`,
+         `Clade E`,
+         `Clade F`) %>%
   kable() %>%
   kable_styling(bootstrap_options = c("striped", "hover"))
 
@@ -172,14 +214,6 @@ location_data <- read_excel("../data/st_location_data.xlsx") %>%
   mutate(Location = paste(fyl_id, kom_id, sep = "-")) %>%
   select(id, Location)
 
-tree_metadata <- read.table("../data/chewbbaca/complete_results/tree_metadata.txt",
-                            sep = "\t",
-                            header = TRUE) %>%
-  left_join(location_data, by = "id") %>%
-  mutate(Year = substr(id, 1, 4)) %>%
-  dplyr::rename("Species" = species)
-
-
 # Import trees
 ST10_raw <- read.iqtree("../data/Phylogeny/STs/ST10/iqtree/iqtree.contree")
 ST355_raw <- read.iqtree("../data/Phylogeny/STs/ST355/iqtree/iqtree.contree")
@@ -191,7 +225,7 @@ raw_trees <- list(ST10_raw,
                   ST602_raw,
                   ST744_raw)
 
-names(raw_trees) <- c("ST10","ST355","ST602","ST744")
+names(raw_trees) <- c("Clade D","Clade E","Clade B","Clade C")
 
 # Clean tree tip labels
 clean_trees <- lapply(
@@ -204,12 +238,32 @@ clean_trees <- lapply(
     )
   )
 
+clean_trees <- lapply(clean_trees,
+                      function(x) {
+                        x@data$Bootstrap <- factor(
+                          case_when(
+                            x@data$UFboot >= 95 ~ "> 95",
+                            x@data$UFboot < 95 &
+                              x@data$UFboot >= 80 ~ "80 - 94",
+                            x@data$UFboot < 80 &
+                              x@data$UFboot >= 50 ~ "50 - 79",
+                            x@data$UFboot < 50 ~ "< 50"
+                          ),
+                          ordered = TRUE,
+                          levels = c("> 95",
+                                     "80 - 94",
+                                     "50 - 79",
+                                     "< 50")
+                        )
+                        return(x)
+                      })
+
 # Specify color and shape palettes
 palette_shape <- c(
-  "Broiler" = 15,
-  "Pig" = 18,
-  "Red fox" = 16,
-  "Wild bird" = 17
+  "Broiler" = 21,
+  "Pig" = 22,
+  "Red fox" = 23,
+  "Wild bird" = 24
 )
 
 palette_color <- brewer.pal(11, "Set3")
@@ -229,9 +283,14 @@ year_val <- c(
 
 names(palette_color) <- year_val
 
+boot_palette <- c("> 95" = "#6a51a3",
+              "80 - 94" = "#9e9ac8",
+              "50 - 79" = "#cbc9e2",
+              "< 50" = "#f2f0f7")
+
 # Generate trees
 annotate_tree(
-  clean_trees$ST10,
+  clean_trees$`Clade B`,
   tree_metadata,
   layout = "rectangular",
   tree_type = "treedata",
@@ -240,21 +299,71 @@ annotate_tree(
   label_variable = "Location",
   color_variable = "Year",
   shape_variable = "Species",
+  bootstrap_var = "Bootstrap",
+  clade_label_node = 10,
+  clade_label = "18 SNP diff",
+  cladelabel_offset = 0.001,
+  bootstrap_lab = FALSE,
+  tippoint_size = 4,
+  label_offset = 0.0002,
+  shape_palette = palette_shape,
+  color_palette = palette_color,
+  node_palette = boot_palette
+) +
+  xlim(0, 0.009) +
+  ggtitle("Clade B, ST602")
+
+annotate_tree(
+  clean_trees$`Clade C`,
+  tree_metadata,
+  layout = "rectangular",
+  tree_type = "treedata",
+  midroot = TRUE,
+  line_width = 0.5,
+  label_variable = "Location",
+  color_variable = "Year",
+  shape_variable = "Species",
+  bootstrap_var = "Bootstrap",
+  clade_label_node = 12,
+  clade_label = "50 SNP diff",
+  cladelabel_offset = 0.00024,
+  bootstrap_lab = FALSE,
+  tippoint_size = 4,
+  label_offset = 0.00007,
+  shape_palette = palette_shape,
+  color_palette = palette_color,
+  node_palette = boot_palette
+) +
+  xlim(0, 0.0030) +
+  ggtitle("Clade C, ST744")
+
+annotate_tree(
+  clean_trees$`Clade D`,
+  tree_metadata,
+  layout = "rectangular",
+  tree_type = "treedata",
+  midroot = TRUE,
+  line_width = 0.5,
+  label_variable = "Location",
+  color_variable = "Year",
+  shape_variable = "Species",
+  bootstrap_var = "Bootstrap",
   clade_label_node = 19,
   clade_label = "10 SNP diff",
   cladelabel_offset = 0.00055,
-  bootstrap_lab = TRUE,
+  bootstrap_lab = FALSE,
   bootlab_size = 2,
   tippoint_size = 4,
   label_offset = 0.0001,
   shape_palette = palette_shape,
-  color_palette = palette_color
+  color_palette = palette_color,
+  node_palette = boot_palette
 ) +
   xlim(0, 0.005) +
-  ggtitle("ST10 Clade")
+  ggtitle("Clade D, ST10")
 
 annotate_tree(
-  clean_trees$ST355,
+  clean_trees$`Clade E`,
   tree_metadata,
   layout = "rectangular",
   tree_type = "treedata",
@@ -263,66 +372,151 @@ annotate_tree(
   label_variable = "Location",
   color_variable = "Year",
   shape_variable = "Species",
+  bootstrap_var = "Bootstrap",
   clade_label_node = 26,
   clade_label = "6 SNP diff",
   cladelabel_offset = 0.0013,
-  bootstrap_lab = TRUE,
-  bootlab_size = 2,
+  bootstrap_lab = FALSE,
   tippoint_size = 4,
   label_offset = 0.0003,
   shape_palette = palette_shape,
-  color_palette = palette_color
+  color_palette = palette_color,
+  node_palette = boot_palette
 ) +
   xlim(0, 0.0165) +
-  ggtitle("ST355 Clade")
-
-annotate_tree(
-  clean_trees$ST602,
-  tree_metadata,
-  layout = "rectangular",
-  tree_type = "treedata",
-  midroot = TRUE,
-  line_width = 0.5,
-  label_variable = "Location",
-  color_variable = "Year",
-  shape_variable = "Species",
-  clade_label_node = 10,
-  clade_label = "18 SNP diff",
-  cladelabel_offset = 0.001,
-  bootstrap_lab = TRUE,
-  bootlab_size = 2,
-  tippoint_size = 4,
-  label_offset = 0.0002,
-  shape_palette = palette_shape,
-  color_palette = palette_color
-) +
-  xlim(0, 0.009) +
-  ggtitle("ST602 Clade")
-
-annotate_tree(
-  clean_trees$ST744,
-  tree_metadata,
-  layout = "rectangular",
-  tree_type = "treedata",
-  midroot = TRUE,
-  line_width = 0.5,
-  label_variable = "Location",
-  color_variable = "Year",
-  shape_variable = "Species",
-  clade_label_node = 12,
-  clade_label = "50 SNP diff",
-  cladelabel_offset = 0.00024,
-  bootstrap_lab = TRUE,
-  bootlab_size = 2,
-  tippoint_size = 4,
-  label_offset = 0.00007,
-  shape_palette = palette_shape,
-  color_palette = palette_color
-) +
-  xlim(0, 0.0030) +
-  ggtitle("ST744 Clade")
+  ggtitle("Clade E, ST355")
 
 ```
+
+# P-value calculations on SNP distances within animal species
+The table presents the non-exact p-values based on 1000 iterations of minimum SNP distances to closest isolate within animal species. The figure shows the distribution of the expected values with the observed values for each animal species denoted as an arrow. Red fox results is excluded from the plot as the observed distance values were too high to visualize.
+```{r}
+# Import distance data
+total_dist <- read_delim("../data/snp_dists/final_Roary_gubbins_SNP_dists.tab",
+                         delim = "\t") %>%
+  rename("isol1" = `snp-dists 0.6.3`)
+
+# Import isolate data
+id_data <- read.table("../data/id.txt",
+                      sep = "\t",
+                      header = TRUE,
+                      stringsAsFactors = F)
+
+isolate_data <- read.table("../data/isolate_data.txt",
+                           sep = "\t",
+                           header = T,
+                           stringsAsFactors = F)
+
+# Set row/column values to unique species ID
+row_id <- as.data.frame(total_dist$isol1) %>%
+  rename("ref" = `total_dist$isol1`) %>%
+  mutate(ref = sub("_pilon_spades.fasta", "", ref)) %>%
+  left_join(id_data, by = "ref") %>%
+  select(id) %>%
+  left_join(isolate_data[,c("id", "species")], by = "id") %>%
+  group_by(species) %>%
+  mutate(n = 1:n(),
+         isol1 = paste(species, n, sep = "_")) %>%
+  ungroup() %>%
+  select(isol1)
+
+col_id <- as.data.frame(names(total_dist)) %>%
+  rename("ref" = `names(total_dist)`) %>%
+  mutate(ref = sub("_pilon_spades.fasta", "", ref)) %>%
+  left_join(id_data, by = "ref") %>%
+  select(id) %>%
+  left_join(isolate_data[,c("id", "species")], by = "id") %>%
+  group_by(species) %>%
+  mutate(n = 1:n(),
+         isol1 = paste(species, n, sep = "_")) %>%
+  ungroup() %>%
+  select(isol1) %>%
+  mutate(isol1 = ifelse(isol1 == "NA_1", "isol1", isol1))
+
+total_dist$isol1 <- row_id$isol1
+names(total_dist) <- col_id$isol1
+
+# Create data frame for iteration analysis
+run_df <- total_dist %>%
+  gather(isol2, value, -isol1) %>%
+  filter(isol1 != isol2) %>%
+  mutate(species1 = sub("_.+", "", isol1),
+         species2 = sub("_.+", "", isol2)) %>%
+  filter(species1 == species2) %>%
+  group_by(isol2) %>%
+  mutate(min_val = min(value)) %>%
+  ungroup() %>%
+  select(isol1, isol2, min_val, species1, species2) %>%
+  rename("value" = min_val,
+         "group1" = species1,
+         "group2" = species2)
+
+# Run iterations
+df <- iterate(run_df, runs = 1000, method = "median") 
+
+# Filter out the observed values
+segment_data <- filter(df, iter == 0,
+                       group1 %in% c("Broiler", "Pig", "Wild bird"))
+
+# Calculate non-exact p-values
+df2 <- df %>%
+  group_by(group1) %>%
+  mutate(test = case_when(group1 == "Broiler" & metric <= 12 ~ 1,
+                          group1 == "Wild bird" & metric <= 53 ~ 1,
+                          group1 == "Pig" & metric <= 212 ~ 1,
+                          group1 == "Red fox" & metric <= 1388.5 ~ 1,
+                          TRUE ~ 0)) %>%
+  split(f = .$group1)
+
+lapply(df2, function(x) round(sum(x$test)/length(x$test), 3)) %>%
+  bind_rows() %>%
+  mutate(Iterations = 1000) %>%
+  kable() %>%
+  kable_styling(bootstrap_options = c("striped", "hover"))
+
+# Plot results, exclude red fox (too high values for the plot to be visible)
+plot_df <- df %>%
+  filter(group1 %in% c("Broiler", "Pig", "Wild bird"))
+
+ggplot(plot_df, aes(metric)) +
+  geom_histogram(
+    aes(y = ..density..),
+    binwidth = 0.2,
+    color = "black",
+    fill = "grey80"
+  ) +
+  stat_function(fun = dnorm,
+                args = with(df, c(
+                  mean = mean(metric), sd = sd(metric)
+                )),
+                color = "red") +
+  geom_segment(
+    segment_data,
+    mapping = aes(
+      x = metric,
+      xend = metric,
+      y = 0.5,
+      yend = 0,
+      color = group1
+    ),
+    arrow = arrow(length = unit(0.3, "cm"),
+                  type = "closed")
+  ) +
+  geom_text(segment_data,
+            mapping = aes(label = group1,
+                          x = metric),
+            y = 1,
+            angle = 90) +
+  guides(color = FALSE) +
+  labs(x = "Min. number of SNPs to closest isolate",
+       y = "Density") +
+  ggtitle(label = "Distribution of expected values",
+          subtitle = paste("Number of iterations: ", max(df$iter))) +
+  theme(plot.title = element_text(hjust = 0)) +
+  scale_color_manual(values = palette)
+
+```
+
 
 
 
