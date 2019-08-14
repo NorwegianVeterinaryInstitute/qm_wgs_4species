@@ -136,21 +136,124 @@ library(treeio)
 library(ggtree)
 library(phytools)
 library(readxl)
+library(RColorBrewer)
+library(ggplot2)
+
+## Total tree
+isol_info <- read.table("data/id.txt",
+                        sep = "\t",
+                        header = TRUE,
+                        stringsAsFactors = FALSE)
+
+mlst_info <- read.table("data/mlst_results.txt",
+                        sep = "\t",
+                        header = TRUE,
+                        stringsAsFactors = FALSE)
+
+isolate_data <- read.table("data/isolate_data.txt",
+                           sep = "\t",
+                           header = TRUE,
+                           stringsAsFactors = FALSE)
+
+metadata <- isolate_data[,c("id","species")] %>%
+  left_join(mlst_info[,c("id","ST")], by = "id") %>%
+  rename("Species" = species)
+
+heatmap_data <- read.table("data/chewbbaca/complete_results/tree_heatmap_data.txt",
+                           sep = "\t",
+                           header = TRUE,
+                           stringsAsFactors = FALSE)
+
+iqtree <- read.iqtree("data/Phylogeny/Roary/iqtree_roary.contree")
+iqtree_clean <- fix_tip_labels(iqtree, isol_info, "_pilon_spades.fasta", tree_type = "treedata")
+
+
+palette <- c("Broiler" = "#4575b4",
+             "Pig" = "#74add1",
+             "Red fox" = "#f46d43",
+             "Wild bird" = "#fdae61")
+
+
+
+palette2 <- c("> 95" = "#6a51a3",
+                  "80 - 94" = "#9e9ac8",
+                  "50 - 79" = "#cbc9e2",
+                  "< 50" = "#f2f0f7",
+                  "1-A" = "#fc8d59",
+                  "1-I" = "#80b1d3",
+                  "0" = "grey95")
+
+iqtree_clean@phylo <- midpoint(iqtree_clean@phylo, labels = "support")
+
+iqtree_clean@data$Bootstrap <- factor(
+  case_when(
+    iqtree_clean@data$UFboot >= 95 ~ "> 95",
+    iqtree_clean@data$UFboot < 95 &
+      iqtree_clean@data$UFboot >= 80 ~ "80 - 94",
+    iqtree_clean@data$UFboot < 80 &
+      iqtree_clean@data$UFboot >= 50 ~ "50 - 79",
+    iqtree_clean@data$UFboot < 50 ~ "< 50"
+  ),
+  ordered = TRUE,
+  levels = c("> 95",
+             "80 - 94",
+             "50 - 79",
+             "< 50")
+)
+
+p1 <- ggtree(iqtree_clean,
+       layout = "circular",
+       size = 0.3) %<+% metadata +
+  geom_nodepoint(aes(fill = Bootstrap),
+                 pch = 21,
+                 color = "white",
+                 size = 1) +
+  geom_tiplab2(aes(label = ST),
+               align = TRUE,
+               size = 1.5,
+               offset = 0.01,
+               linesize = 0.2) +
+  geom_tippoint(aes(color = Species),
+                size = 1) +
+  guides(colour = guide_legend(override.aes = list(size=5)),
+         fill = guide_legend(override.aes = list(size=5))) +
+  scale_color_manual(values = palette) +
+  scale_fill_manual(values = palette2) +
+  theme(legend.position = "right")
+
+p2 <- add_heatmap(p1,
+            "data/chewbbaca/complete_results/tree_heatmap_data.txt",
+            font_size = 2,
+            colnames_offset = 3.3,
+            heatmap_offset = 0.025,
+            heatmap_width = 0.3) +
+  scale_fill_manual(values = palette2) +
+  geom_treescale(x = 0.05, y = 0, offset = 2, fontsize = 1)
+
+
+ggsave("figures/total_SNP_tree.png",
+       p2,
+       device = "png",
+       units = "cm",
+       dpi = 600,
+       height = 25,
+       width = 25)
+
+
+
 
 isol_info <- read.table("data/id.txt",
                         sep = "\t",
                         header = TRUE,
                         stringsAsFactors = FALSE)
 
-ST58_raw <- read.iqtree("data/Phylogeny/STs/ST58/iqtree/iqtree.contree")
 ST117_raw <- read.iqtree("data/Phylogeny/STs/ST117/iqtree/iqtree.contree")
 ST162_raw <- read.iqtree("data/Phylogeny/STs/ST162/iqtree/iqtree.contree")
 
-raw_trees <- list(ST58_raw,
-                  ST117_raw,
+raw_trees <- list(ST117_raw,
                   ST162_raw)
 
-names(raw_trees) <- c("ST58","ST117","ST162")
+names(raw_trees) <- c("Clade F","Clade A")
 
 clean_trees <- lapply(
   raw_trees,
@@ -177,13 +280,11 @@ tree_metadata <- read.table("data/chewbbaca/complete_results/tree_metadata.txt",
   dplyr::rename("Species" = species)
 
 palette_shape <- c(
-  "Broiler" = 15,
-  "Pig" = 18,
-  "Red fox" = 16,
-  "Wild bird" = 17
+  "Broiler" = 21,
+  "Pig" = 22,
+  "Red fox" = 23,
+  "Wild bird" = 24
 )
-
-library(RColorBrewer)
 
 palette_color <- brewer.pal(11, "Set3")
 
@@ -202,36 +303,24 @@ year_val <- c(
 
 names(palette_color) <- year_val
 
+boot_palette <- c("> 95" = "#6a51a3",
+              "80 - 94" = "#9e9ac8",
+              "50 - 79" = "#cbc9e2",
+              "< 50" = "#f2f0f7")
 
-
-library(ggplot2)
+clean_trees_new <- lapply(clean_trees, function(x){
+  x@data$Bootstrap <- factor(case_when(x@data$UFboot >= 95 ~ "> 95",
+                                x@data$UFboot <95 & x@data$UFboot >= 80 ~ "80 - 94",
+                                x@data$UFboot < 80 & x@data$UFboot >= 50 ~ "50 - 79",
+                                x@data$UFboot < 50 ~ "< 50"),
+                             ordered = TRUE,
+                             levels = c("> 95", "80 - 94", "50 - 79", "< 50"))
+  
+  return(x)
+})
 
 p1 <- annotate_tree(
-  clean_trees$ST58,
-  tree_metadata,
-  layout = "rectangular",
-  tree_type = "treedata",
-  midroot = TRUE,
-  line_width = 0.5,
-  label_variable = "Location",
-  color_variable = "Year",
-  shape_variable = "Species",
-  clade_label_node = 32,
-  clade_label = "9 SNP diff",
-  cladelabel_offset = 0.00020,
-  bootstrap_lab = TRUE,
-  bootlab_size = 2,
-  tippoint_size = 4,
-  label_offset = 0.00005,
-  shape_palette = palette_shape,
-  color_palette = palette_color
-) +
-  xlim(0, 0.002) +
-  ggtitle("ST58 Clade")
-
-
-p2 <- annotate_tree(
-  clean_trees$ST117,
+  clean_trees_new$`Clade F`,
   tree_metadata,
   layout = "rectangular",
   tree_type = "treedata",
@@ -242,19 +331,21 @@ p2 <- annotate_tree(
   shape_variable = "Species",
   clade_label_node = 23,
   clade_label = "37 SNP diff",
-  cladelabel_offset = 0.00022,
-  bootstrap_lab = TRUE,
-  bootlab_size = 2,
+  cladelabel_offset = 0.00025,
+  bootstrap_lab = FALSE,
+  bootstrap_var = "Bootstrap",
+  nodepoint_size = 1.5,
   tippoint_size = 4,
   label_offset = 0.00005,
-  shape_palette = palette_shape,
-  color_palette = palette_color
+  color_palette = palette_color,
+  node_palette = boot_palette,
+  shape_palette = palette_shape
 ) +
   xlim(0, 0.0025) +
-  ggtitle("ST117 Clade")
+  ggtitle("Clade F, ST117")
 
-p3 <- annotate_tree(
-  clean_trees$ST162,
+p2 <- annotate_tree(
+  clean_trees_new$`Clade A`,
   tree_metadata,
   layout = "rectangular",
   tree_type = "treedata",
@@ -265,26 +356,28 @@ p3 <- annotate_tree(
   shape_variable = "Species",
   clade_label_node = 29,
   clade_label = "12 SNP diff",
-  cladelabel_offset = 0.0038,
-  bootstrap_lab = TRUE,
-  bootlab_size = 2,
+  cladelabel_offset = 0.0055,
+  bootstrap_lab = FALSE,
+  bootstrap_var = "Bootstrap",
+  nodepoint_size = 1.5,
   tippoint_size = 4,
-  label_offset = 0.0005,
-  shape_palette = palette_shape,
-  color_palette = palette_color
+  label_offset = 0.001,
+  color_palette = palette_color,
+  node_palette = boot_palette,
+  shape_palette = palette_shape
 ) +
-  xlim(0, 0.042) +
-  ggtitle("ST162 Clade")
+  xlim(0, 0.047) +
+  ggtitle("Clade A, ST162")
 
 
 
-ggsave("ST117.png",
+ggsave("figures/CladeA_ST162.png",
        p2,
        device = "png",
        dpi = 600,
        units = "cm",
-       height = 25,
-       width = 20)
+       height = 15,
+       width = 15)
 
 # NMDS analysis
 
