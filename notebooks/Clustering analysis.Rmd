@@ -157,12 +157,12 @@ gheatmap(p,
          offset = 0.01,
          colnames = FALSE) +
   scale_fill_manual(values = col_palette) + 
-  annotate("label", x = 0.27, y = 270, label = "Clade A") +
-  annotate("label", x = 0.29, y = 251, label = "Clade B") +
-  annotate("label", x = 0.39, y = 167, label = "Clade C") +
-  annotate("label", x = 0.38, y = 138, label = "Clade D") +
-  annotate("label", x = 0.32, y = 57, label = "Clade E") +
-  annotate("label", x = 0.31, y = 31, label = "Clade F")
+  annotate("label", x = 0.26, y = 274, label = "Clade A") +
+  annotate("label", x = 0.27, y = 262, label = "Clade B") +
+  annotate("label", x = 0.40, y = 167, label = "Clade C") +
+  annotate("label", x = 0.39, y = 138, label = "Clade D") +
+  annotate("label", x = 0.33, y = 57, label = "Clade E") +
+  annotate("label", x = 0.32, y = 31, label = "Clade F")
 
 ```
 
@@ -174,7 +174,7 @@ dist_data <- get_data("../data/Phylogeny/STs",
                       recursive = TRUE,
                       df = FALSE)
 
-names(dist_data) <- c("Clade D", "Clade F", "Clade A", "Clade E", "Clade B", "Clade C")
+names(dist_data) <- c("Clade D", "Clade F", "Clade A", "Clade B", "Clade E", "Clade C")
 
 dist_clean <- lapply(dist_data, function(x){
   x %>%
@@ -216,16 +216,16 @@ location_data <- read_excel("../data/st_location_data.xlsx") %>%
 
 # Import trees
 ST10_raw <- read.iqtree("../data/Phylogeny/STs/ST10/iqtree/iqtree.contree")
+ST162_A_raw <- read.iqtree("../data/Phylogeny/STs/ST162_A/iqtree/iqtree.contree")
 ST355_raw <- read.iqtree("../data/Phylogeny/STs/ST355/iqtree/iqtree.contree")
-ST602_raw <- read.iqtree("../data/Phylogeny/STs/ST602/iqtree/iqtree.contree")
 ST744_raw <- read.iqtree("../data/Phylogeny/STs/ST744/iqtree/iqtree.contree")
 
 raw_trees <- list(ST10_raw,
+                  ST162_A_raw,
                   ST355_raw,
-                  ST602_raw,
                   ST744_raw)
 
-names(raw_trees) <- c("Clade D","Clade E","Clade B","Clade C")
+names(raw_trees) <- c("Clade D","Clade A","Clade E","Clade C")
 
 # Clean tree tip labels
 clean_trees <- lapply(
@@ -290,7 +290,7 @@ boot_palette <- c("> 95" = "#6a51a3",
 
 # Generate trees
 annotate_tree(
-  clean_trees$`Clade B`,
+  clean_trees$`Clade A`,
   tree_metadata,
   layout = "rectangular",
   tree_type = "treedata",
@@ -300,7 +300,7 @@ annotate_tree(
   color_variable = "Year",
   shape_variable = "Species",
   bootstrap_var = "Bootstrap",
-  clade_label_node = 10,
+  clade_label_node = 27,
   clade_label = "18 SNP diff",
   cladelabel_offset = 0.001,
   bootstrap_lab = FALSE,
@@ -311,7 +311,7 @@ annotate_tree(
   node_palette = boot_palette
 ) +
   xlim(0, 0.009) +
-  ggtitle("Clade B, ST602")
+  ggtitle("Clade A, ST162")
 
 annotate_tree(
   clean_trees$`Clade C`,
