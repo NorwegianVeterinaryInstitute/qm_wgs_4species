@@ -147,6 +147,25 @@ mut_filtered %>%
   kable_styling(bootstrap_options = c("striped", "hover"))
 ```
 
+# Prokka reference genomes
+The genomes listed below were used as references for the Prokka annotation, and downloaded with ncbi-genome-download (https://github.com/kblin/ncbi-genome-download) with the following commands: 
+
+--refseq-category reference
+
+--assembly-level complete
+
+--genus "Escherichia coli" bacteria
+
+
+
+| Accession number           |  Information                 |
+|----------------------------|------------------------------|
+| GCF_000005845.2_ASM584v2   | _E. coli_ K12                |
+| GCF_000008865.2_ASM886v2   | _E. coli_ O157:H7 Sakai      |
+| GCF_000026345.1_ASM2634v1  | _E. coli_ IAI39              |
+| GCF_000183345.1_ASM18334v1 | _E. coli_ O83:H1 NRG 857C    |
+| GCF_000299455.1_ASM29945v1 | _E. coli_ O104:H4 2011C-3493 |
+
 
 # R and R-Packages
 R version 3.6.0 [1] was used in the present study. The following packages were used:
