@@ -369,8 +369,6 @@ p2 <- annotate_tree(
   xlim(0, 0.047) +
   ggtitle("Clade A, ST162")
 
-
-
 ggsave("figures/CladeA_ST162.png",
        p2,
        device = "png",
