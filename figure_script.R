@@ -136,6 +136,7 @@ library(treeio)
 library(ggtree)
 library(phytools)
 library(readxl)
+library(phangorn)
 library(RColorBrewer)
 library(ggplot2)
 
@@ -248,12 +249,12 @@ isol_info <- read.table("data/id.txt",
                         stringsAsFactors = FALSE)
 
 ST117_raw <- read.iqtree("data/Phylogeny/STs/ST117/iqtree/iqtree.contree")
-ST162_raw <- read.iqtree("data/Phylogeny/STs/ST162/iqtree/iqtree.contree")
+ST162_B_raw <- read.iqtree("data/Phylogeny/STs/ST162_B/iqtree/iqtree.contree")
 
 raw_trees <- list(ST117_raw,
-                  ST162_raw)
+                  ST162_B_raw)
 
-names(raw_trees) <- c("Clade F","Clade A")
+names(raw_trees) <- c("Clade F","Clade B")
 
 clean_trees <- lapply(
   raw_trees,
@@ -329,9 +330,9 @@ p1 <- annotate_tree(
   label_variable = "Location",
   color_variable = "Year",
   shape_variable = "Species",
-  clade_label_node = 23,
-  clade_label = "37 SNP diff",
-  cladelabel_offset = 0.00025,
+  clade_label_node = 21,
+  clade_label = "3 SNP diff",
+  cladelabel_offset = 0.0003,
   bootstrap_lab = FALSE,
   bootstrap_var = "Bootstrap",
   nodepoint_size = 1.5,
@@ -341,11 +342,11 @@ p1 <- annotate_tree(
   node_palette = boot_palette,
   shape_palette = palette_shape
 ) +
-  xlim(0, 0.0025) +
+  xlim(0, 0.0028) +
   ggtitle("Clade F, ST117")
 
 p2 <- annotate_tree(
-  clean_trees_new$`Clade A`,
+  clean_trees_new$`Clade B`,
   tree_metadata,
   layout = "rectangular",
   tree_type = "treedata",
@@ -354,23 +355,23 @@ p2 <- annotate_tree(
   label_variable = "Location",
   color_variable = "Year",
   shape_variable = "Species",
-  clade_label_node = 29,
+  clade_label_node = 14,
   clade_label = "12 SNP diff",
-  cladelabel_offset = 0.0055,
+  cladelabel_offset = 0.0012,
   bootstrap_lab = FALSE,
   bootstrap_var = "Bootstrap",
   nodepoint_size = 1.5,
   tippoint_size = 4,
-  label_offset = 0.001,
+  label_offset = 0.0003,
   color_palette = palette_color,
   node_palette = boot_palette,
   shape_palette = palette_shape
 ) +
-  xlim(0, 0.047) +
-  ggtitle("Clade A, ST162")
+  xlim(0, 0.01) +
+  ggtitle("Clade B, ST162")
 
-ggsave("figures/CladeA_ST162.png",
-       p2,
+ggsave("figures/CladeF_ST117.png",
+       p1,
        device = "png",
        dpi = 600,
        units = "cm",
