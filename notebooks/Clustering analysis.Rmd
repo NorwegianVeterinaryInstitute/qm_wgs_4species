@@ -245,7 +245,7 @@ clean_trees <- lapply(clean_trees,
                       function(x) {
                         x@data$Bootstrap <- factor(
                           case_when(
-                            x@data$UFboot >= 95 ~ "> 95",
+                            x@data$UFboot >= 95 ~ ">= 95",
                             x@data$UFboot < 95 &
                               x@data$UFboot >= 80 ~ "80 - 94",
                             x@data$UFboot < 80 &
@@ -253,7 +253,7 @@ clean_trees <- lapply(clean_trees,
                             x@data$UFboot < 50 ~ "< 50"
                           ),
                           ordered = TRUE,
-                          levels = c("> 95",
+                          levels = c(">= 95",
                                      "80 - 94",
                                      "50 - 79",
                                      "< 50")
@@ -286,7 +286,7 @@ year_val <- c(
 
 names(palette_color) <- year_val
 
-boot_palette <- c("> 95" = "#6a51a3",
+boot_palette <- c(">= 95" = "#6a51a3",
               "80 - 94" = "#9e9ac8",
               "50 - 79" = "#cbc9e2",
               "< 50" = "#f2f0f7")
