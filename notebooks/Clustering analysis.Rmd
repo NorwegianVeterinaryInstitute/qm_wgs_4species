@@ -297,39 +297,42 @@ annotate_tree(
   tree_metadata,
   layout = "rectangular",
   tree_type = "treedata",
-  midroot = TRUE,
   line_width = 0.5,
   label_variable = "Location",
   color_variable = "Year",
   shape_variable = "Species",
   bootstrap_var = "Bootstrap",
-  clade_label_node = 27,
+  clade_label_node = 26,
   clade_label = "18 SNP diff",
-  cladelabel_offset = 0.001,
+  cladelabel_offset = 0.0014,
   bootstrap_lab = FALSE,
   tippoint_size = 4,
-  label_offset = 0.0002,
+  label_offset = 0.00018,
   shape_palette = palette_shape,
   color_palette = palette_color,
   node_palette = boot_palette
 ) +
-  xlim(0, 0.009) +
-  ggtitle("Clade A, ST162")
+  xlim(0, 0.0125) +
+  ggtitle("Clade A, ST162") +
+  scale_color_manual(values = boot_palette,
+                     breaks = c(">= 95",
+                                "80 - 94",
+                                "50 - 79",
+                                "< 50"))
 
 annotate_tree(
   clean_trees$`Clade C`,
   tree_metadata,
   layout = "rectangular",
   tree_type = "treedata",
-  midroot = TRUE,
   line_width = 0.5,
   label_variable = "Location",
   color_variable = "Year",
   shape_variable = "Species",
   bootstrap_var = "Bootstrap",
-  clade_label_node = 12,
+  clade_label_node = 14,
   clade_label = "50 SNP diff",
-  cladelabel_offset = 0.00024,
+  cladelabel_offset = 0.00028,
   bootstrap_lab = FALSE,
   tippoint_size = 4,
   label_offset = 0.00007,
@@ -337,22 +340,26 @@ annotate_tree(
   color_palette = palette_color,
   node_palette = boot_palette
 ) +
-  xlim(0, 0.0030) +
-  ggtitle("Clade C, ST744")
+  xlim(0, 0.0032) +
+  ggtitle("Clade C, ST744") +
+  scale_color_manual(values = boot_palette,
+                     breaks = c(">= 95",
+                                "80 - 94",
+                                "50 - 79",
+                                "< 50"))
 
 annotate_tree(
   clean_trees$`Clade D`,
   tree_metadata,
   layout = "rectangular",
   tree_type = "treedata",
-  midroot = TRUE,
   line_width = 0.5,
   label_variable = "Location",
   color_variable = "Year",
   shape_variable = "Species",
   bootstrap_var = "Bootstrap",
-  clade_label_node = 19,
-  clade_label = "10 SNP diff",
+  clade_label_node = 24,
+  clade_label = "40 SNP diff",
   cladelabel_offset = 0.00055,
   bootstrap_lab = FALSE,
   bootlab_size = 2,
@@ -362,15 +369,19 @@ annotate_tree(
   color_palette = palette_color,
   node_palette = boot_palette
 ) +
-  xlim(0, 0.005) +
-  ggtitle("Clade D, ST10")
+  xlim(0, 0.006) +
+  ggtitle("Clade D, ST10") +
+  scale_color_manual(values = boot_palette,
+                     breaks = c(">= 95",
+                                "80 - 94",
+                                "50 - 79",
+                                "< 50"))
 
 annotate_tree(
   clean_trees$`Clade E`,
   tree_metadata,
   layout = "rectangular",
   tree_type = "treedata",
-  midroot = TRUE,
   line_width = 0.5,
   label_variable = "Location",
   color_variable = "Year",
@@ -378,7 +389,7 @@ annotate_tree(
   bootstrap_var = "Bootstrap",
   clade_label_node = 26,
   clade_label = "6 SNP diff",
-  cladelabel_offset = 0.0013,
+  cladelabel_offset = 0.002,
   bootstrap_lab = FALSE,
   tippoint_size = 4,
   label_offset = 0.0003,
@@ -386,8 +397,13 @@ annotate_tree(
   color_palette = palette_color,
   node_palette = boot_palette
 ) +
-  xlim(0, 0.0165) +
-  ggtitle("Clade E, ST355")
+  xlim(0, 0.03) +
+  ggtitle("Clade E, ST355") +
+  scale_color_manual(values = boot_palette,
+                       breaks = c(">= 95",
+                                  "80 - 94",
+                                  "50 - 79",
+                                  "< 50"))
 
 ```
 
