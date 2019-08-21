@@ -304,60 +304,64 @@ year_val <- c(
 
 names(palette_color) <- year_val
 
-boot_palette <- c("> 95" = "#6a51a3",
+boot_palette <- c(">= 95" = "#6a51a3",
               "80 - 94" = "#9e9ac8",
               "50 - 79" = "#cbc9e2",
               "< 50" = "#f2f0f7")
 
 clean_trees_new <- lapply(clean_trees, function(x){
-  x@data$Bootstrap <- factor(case_when(x@data$UFboot >= 95 ~ "> 95",
+  x@data$Bootstrap <- factor(case_when(x@data$UFboot >= 95 ~ ">= 95",
                                 x@data$UFboot <95 & x@data$UFboot >= 80 ~ "80 - 94",
                                 x@data$UFboot < 80 & x@data$UFboot >= 50 ~ "50 - 79",
                                 x@data$UFboot < 50 ~ "< 50"),
                              ordered = TRUE,
-                             levels = c("> 95", "80 - 94", "50 - 79", "< 50"))
+                             levels = c(">= 95", "80 - 94", "50 - 79", "< 50"))
   
   return(x)
 })
+
 
 p1 <- annotate_tree(
   clean_trees_new$`Clade F`,
   tree_metadata,
   layout = "rectangular",
   tree_type = "treedata",
-  midroot = TRUE,
   line_width = 0.5,
   label_variable = "Location",
   color_variable = "Year",
   shape_variable = "Species",
-  clade_label_node = 21,
+  clade_label_node = 26,
   clade_label = "3 SNP diff",
-  cladelabel_offset = 0.0003,
+  cladelabel_offset = 0.0005,
   bootstrap_lab = FALSE,
   bootstrap_var = "Bootstrap",
   nodepoint_size = 1.5,
   tippoint_size = 4,
-  label_offset = 0.00005,
+  label_offset = 0.00008,
   color_palette = palette_color,
   node_palette = boot_palette,
   shape_palette = palette_shape
 ) +
-  xlim(0, 0.0028) +
-  ggtitle("Clade F, ST117")
+  xlim(0, 0.0045) +
+  ggtitle("Clade F, ST117") +
+  scale_color_manual(values = boot_palette,
+                     breaks = c(">= 95",
+                                "80 - 94",
+                                "50 - 79",
+                                "< 50"))
 
 p2 <- annotate_tree(
   clean_trees_new$`Clade B`,
   tree_metadata,
   layout = "rectangular",
   tree_type = "treedata",
-  midroot = TRUE,
   line_width = 0.5,
   label_variable = "Location",
   color_variable = "Year",
   shape_variable = "Species",
-  clade_label_node = 14,
+  clade_label_node = 16,
   clade_label = "12 SNP diff",
-  cladelabel_offset = 0.0012,
+  cladelabel_offset = 0.0018,
   bootstrap_lab = FALSE,
   bootstrap_var = "Bootstrap",
   nodepoint_size = 1.5,
@@ -366,9 +370,14 @@ p2 <- annotate_tree(
   color_palette = palette_color,
   node_palette = boot_palette,
   shape_palette = palette_shape
-) +
-  xlim(0, 0.01) +
-  ggtitle("Clade B, ST162")
+) + 
+  xlim(0, 0.015) +
+  ggtitle("Clade B, ST162") +
+  scale_color_manual(values = boot_palette,
+                     breaks = c(">= 95",
+                                "80 - 94",
+                                "50 - 79",
+                                "< 50"))
 
 ggsave("figures/CladeF_ST117.png",
        p1,
