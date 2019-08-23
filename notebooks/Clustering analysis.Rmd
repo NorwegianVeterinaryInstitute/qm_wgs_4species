@@ -195,19 +195,18 @@ summary_list %>%
 
 ```
 
-# Maximum likelihood trees on clades of interest
-Each tree is midpoint rooted for visual purposes. The values on each node is the UF Bootstrap values calculated by IQTree. The tip point shape represent the animal species of origin, and the color the year of isolation. The tip labels represent the location of the isolate; the first number represent the county, and the second number the municipality.
+# Maximum likelihood trees on selected clades
+The table presents the evolutionary model predicted by IQTree, and the percent shared genome calculated by ParSNP for each selected clade
 
-Evolutionary models:
+| Clade | Evolutionary model | Shared genome |
+|-------|--------------------|---------------|
+| A     | K2P+ASC+R2         | 88.4%         |
+| C     | K3P+ASC            | 88.4%         |
+| D     | K2P+ASC+R2         | 87.2%         |
+| E     | K3P+ASC            | 90.2%         |
 
-- Clade A: K2P+ASC+R2
 
-- Clade C: K3P+ASC
-
-- Clade D: K2P+ASC+R2
-
-- Clade E: K3P+ASC
-
+The values on each node is the UF Bootstrap values calculated by IQTree. The tip point shape represent the animal species of origin, and the color the year of isolation. The tip labels represent the location of the isolate; the first number represent the county, and the second number the municipality.
 ```{r message=FALSE, warning=FALSE}
 # Import isolate information and tree metadata
 location_data <- read_excel("../data/st_location_data.xlsx") %>%
