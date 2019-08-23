@@ -2944,7 +2944,7 @@ div.tocify {
 
 <h1 class="title toc-ignore">Clustering analysis and statistics</h1>
 <h4 class="author">Håkon Kaspersen</h4>
-<h4 class="date">21.08.2019</h4>
+<h4 class="date">23.08.2019</h4>
 
 </div>
 
@@ -3281,16 +3281,41 @@ Max
 </tbody>
 </table>
 </div>
-<div id="maximum-likelihood-trees-on-clades-of-interest" class="section level1">
-<h1><span class="header-section-number">3</span> Maximum likelihood trees on clades of interest</h1>
-<p>Each tree is midpoint rooted for visual purposes. The values on each node is the UF Bootstrap values calculated by IQTree. The tip point shape represent the animal species of origin, and the color the year of isolation. The tip labels represent the location of the isolate; the first number represent the county, and the second number the municipality.</p>
-<p>Evolutionary models:</p>
-<ul>
-<li><p>Clade A: K2P+ASC+R2</p></li>
-<li><p>Clade C: K3P+ASC</p></li>
-<li><p>Clade D: K2P+ASC+R2</p></li>
-<li><p>Clade E: K3P+ASC</p></li>
-</ul>
+<div id="maximum-likelihood-trees-on-selected-clades" class="section level1">
+<h1><span class="header-section-number">3</span> Maximum likelihood trees on selected clades</h1>
+<p>The table presents the evolutionary model predicted by IQTree, and the percent shared genome calculated by ParSNP for each selected clade</p>
+<table>
+<thead>
+<tr class="header">
+<th>Clade</th>
+<th>Evolutionary model</th>
+<th>Shared genome</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>A</td>
+<td>K2P+ASC+R2</td>
+<td>88.4%</td>
+</tr>
+<tr class="even">
+<td>C</td>
+<td>K3P+ASC</td>
+<td>88.4%</td>
+</tr>
+<tr class="odd">
+<td>D</td>
+<td>K2P+ASC+R2</td>
+<td>87.2%</td>
+</tr>
+<tr class="even">
+<td>E</td>
+<td>K3P+ASC</td>
+<td>90.2%</td>
+</tr>
+</tbody>
+</table>
+<p>The values on each node is the UF Bootstrap values calculated by IQTree. The tip point shape represent the animal species of origin, and the color the year of isolation. The tip labels represent the location of the isolate; the first number represent the county, and the second number the municipality.</p>
 <div class="sourceCode" id="cb5"><pre class="sourceCode r"><code class="sourceCode r"><a class="sourceLine" id="cb5-1" title="1"><span class="co"># Import isolate information and tree metadata</span></a>
 <a class="sourceLine" id="cb5-2" title="2">location_data &lt;-<span class="st"> </span><span class="kw">read_excel</span>(<span class="st">&quot;../data/st_location_data.xlsx&quot;</span>) <span class="op">%&gt;%</span></a>
 <a class="sourceLine" id="cb5-3" title="3"><span class="st">  </span><span class="kw">select</span>(id, Kommune, Fylke) <span class="op">%&gt;%</span></a>
