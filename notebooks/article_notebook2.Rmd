@@ -69,7 +69,7 @@ source("../scripts/ARIBA_analysis.R")
 ```
 
 # Group listing
-This table presents the groups created in the isolate selection. The "Additional Resistances" column contains how many additional antimicrobials the isolates in that group is resistant to, other than CIP and/or NAL.
+This table presents the groups created in the isolate selection. The "Additional Resistances" column contains how many additional antimicrobials the isolates in that group is resistant to, in addition to CIP and/or NAL.
 ```{r}
 mic_data %>%
   left_join(isolate_data[,c("id","species")], by = "id") %>%
