@@ -2944,7 +2944,7 @@ div.tocify {
 
 <h1 class="title toc-ignore">Clustering analysis and statistics</h1>
 <h4 class="author">Håkon Kaspersen</h4>
-<h4 class="date">23.08.2019</h4>
+<h4 class="date">29.08.2019</h4>
 
 </div>
 
@@ -2999,7 +2999,7 @@ div.tocify {
 <a class="sourceLine" id="cb2-31" title="31">                        <span class="dt">stringsAsFactors =</span> F)</a></code></pre></div>
 <div id="patristic-distances" class="section level1">
 <h1><span class="header-section-number">1</span> Patristic distances</h1>
-<p>Patristic distances were calculated from the core gene alignment SNP tree.</p>
+<p>Patristic distances were calculated from the core gene alignment SNP tree. The labelled clades are the groups further investigated.</p>
 <div class="sourceCode" id="cb3"><pre class="sourceCode r"><code class="sourceCode r"><a class="sourceLine" id="cb3-1" title="1">location_data &lt;-<span class="st"> </span><span class="kw">read_excel</span>(<span class="st">&quot;../data/st_location_data.xlsx&quot;</span>) <span class="op">%&gt;%</span></a>
 <a class="sourceLine" id="cb3-2" title="2"><span class="st">  </span><span class="kw">select</span>(id, Kommune, Fylke) <span class="op">%&gt;%</span></a>
 <a class="sourceLine" id="cb3-3" title="3"><span class="st">  </span><span class="kw">mutate</span>(<span class="dt">fyl_id =</span> <span class="kw">group_indices</span>(., Fylke),</a>
@@ -3315,6 +3315,11 @@ Max
 </tr>
 </tbody>
 </table>
+<p><br />
+<br />
+<br />
+</p>
+<p><strong>Subclade trees</strong></p>
 <p>The values on each node is the UF Bootstrap values calculated by IQTree. The tip point shape represent the animal species of origin, and the color the year of isolation. The tip labels represent the location of the isolate; the first number represent the county, and the second number the municipality.</p>
 <div class="sourceCode" id="cb5"><pre class="sourceCode r"><code class="sourceCode r"><a class="sourceLine" id="cb5-1" title="1"><span class="co"># Import isolate information and tree metadata</span></a>
 <a class="sourceLine" id="cb5-2" title="2">location_data &lt;-<span class="st"> </span><span class="kw">read_excel</span>(<span class="st">&quot;../data/st_location_data.xlsx&quot;</span>) <span class="op">%&gt;%</span></a>
@@ -3515,7 +3520,7 @@ Max
 </div>
 <div id="p-value-calculations-on-snp-distances-within-animal-species" class="section level1">
 <h1><span class="header-section-number">4</span> P-value calculations on SNP distances within animal species</h1>
-<p>The table presents the non-exact p-values based on 1000 iterations of minimum SNP distances to closest isolate within animal species. The figure shows the distribution of the expected values with the observed values for each animal species denoted as an arrow. Red fox results is excluded from the plot as the observed distance values were too high to visualize.</p>
+<p>The table presents the non-exact p-values based on 1000 iterations of minimum SNP distances to the closest isolate within each animal species. The figure shows the distribution of the expected values with the observed values for each animal species denoted as an arrow. Red fox results is excluded from the plot as the observed distance values were too high to visualize.</p>
 <div class="sourceCode" id="cb9"><pre class="sourceCode r"><code class="sourceCode r"><a class="sourceLine" id="cb9-1" title="1"><span class="co"># Import distance data</span></a>
 <a class="sourceLine" id="cb9-2" title="2">total_dist &lt;-<span class="st"> </span><span class="kw">read_delim</span>(<span class="st">&quot;../data/snp_dists/final_Roary_gubbins_SNP_dists.tab&quot;</span>,</a>
 <a class="sourceLine" id="cb9-3" title="3">                         <span class="dt">delim =</span> <span class="st">&quot;</span><span class="ch">\t</span><span class="st">&quot;</span>) <span class="op">%&gt;%</span></a>
