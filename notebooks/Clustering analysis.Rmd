@@ -76,7 +76,7 @@ mlst_data <- read.table("../data/mlst_results.txt",
 ```
 
 # Patristic distances
-Patristic distances were calculated from the core gene alignment SNP tree.
+Patristic distances were calculated from the core gene alignment SNP tree. The labelled clades are the groups further investigated.
 ```{r fig.width=12, fig.height=12, warning=FALSE, message=FALSE}
 location_data <- read_excel("../data/st_location_data.xlsx") %>%
   select(id, Kommune, Fylke) %>%
@@ -205,6 +205,11 @@ The table presents the evolutionary model predicted by IQTree, and the percent s
 | D     | K2P+ASC+R2         | 87.2%         |
 | E     | K3P+ASC            | 90.2%         |
 
+\
+\
+\
+
+**Subclade trees**
 
 The values on each node is the UF Bootstrap values calculated by IQTree. The tip point shape represent the animal species of origin, and the color the year of isolation. The tip labels represent the location of the isolate; the first number represent the county, and the second number the municipality.
 ```{r message=FALSE, warning=FALSE}
@@ -407,7 +412,7 @@ annotate_tree(
 ```
 
 # P-value calculations on SNP distances within animal species
-The table presents the non-exact p-values based on 1000 iterations of minimum SNP distances to closest isolate within animal species. The figure shows the distribution of the expected values with the observed values for each animal species denoted as an arrow. Red fox results is excluded from the plot as the observed distance values were too high to visualize.
+The table presents the non-exact p-values based on 1000 iterations of minimum SNP distances to the closest isolate within each animal species. The figure shows the distribution of the expected values with the observed values for each animal species denoted as an arrow. Red fox results is excluded from the plot as the observed distance values were too high to visualize.
 ```{r}
 # Import distance data
 total_dist <- read_delim("../data/snp_dists/final_Roary_gubbins_SNP_dists.tab",

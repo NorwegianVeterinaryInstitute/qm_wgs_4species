@@ -2944,7 +2944,7 @@ div.tocify {
 
 <h1 class="title toc-ignore">Additional Tables</h1>
 <h4 class="author">Håkon Kaspersen</h4>
-<h4 class="date">16.08.2019</h4>
+<h4 class="date">29.08.2019</h4>
 
 </div>
 
@@ -2990,7 +2990,7 @@ div.tocify {
 <a class="sourceLine" id="cb2-35" title="35">                        <span class="dt">stringsAsFactors =</span> F)</a></code></pre></div>
 <div id="group-listing" class="section level1">
 <h1><span class="header-section-number">1</span> Group listing</h1>
-<p>This table presents the groups created in the isolate selection. The “Additional Resistances” column contains how many additional antimicrobials the isolates in that group is resistant to, other than CIP and/or NAL.</p>
+<p>This table presents the groups created in the isolate selection. The “Additional Resistances” column contains how many additional antimicrobials the isolates in that group is resistant to, in addition to CIP and/or NAL.</p>
 <div class="sourceCode" id="cb3"><pre class="sourceCode r"><code class="sourceCode r"><a class="sourceLine" id="cb3-1" title="1">mic_data <span class="op">%&gt;%</span></a>
 <a class="sourceLine" id="cb3-2" title="2"><span class="st">  </span><span class="kw">left_join</span>(isolate_data[,<span class="kw">c</span>(<span class="st">&quot;id&quot;</span>,<span class="st">&quot;species&quot;</span>)], <span class="dt">by =</span> <span class="st">&quot;id&quot;</span>) <span class="op">%&gt;%</span></a>
 <a class="sourceLine" id="cb3-3" title="3"><span class="st">  </span><span class="kw">group_by</span>(antres, CIP, NAL, species) <span class="op">%&gt;%</span></a>
