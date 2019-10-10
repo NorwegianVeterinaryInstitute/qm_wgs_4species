@@ -1,7 +1,7 @@
 # Supplementary material
 
 ## Information
-Supplementary material for the article "Closely related quinolone resistant Escherichia coli in different animal species in Norway – part of the normal flora or dissemination events?"
+Supplementary material for the article "Phylogeny reveals unexpected similarity and possible persistence of quinolone resistant Escherichia coli in different animal species in Norway".
 
 [Download metadata table in excel format](total_data.xlsx)
 
