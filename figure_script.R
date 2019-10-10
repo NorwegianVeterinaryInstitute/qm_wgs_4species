@@ -19,7 +19,7 @@ palette <- c("Broiler" = "#4575b4",
              "Wild bird" = "#fdae61")
 
 ggsave(
- "C:/Users/vi1511.VETINST/OneDrive - Veterinærinstituttet/Artikler/qrec_wgs/figures/res_per_species.tiff",
+ "C:/Users/vi1511/OneDrive - Veterinærinstituttet/Artikler/qrec_wgs/figures/res_per_species.tiff",
   mut_report %>%
    filter(id %not_in% ex_samples) %>%
    left_join(isolate_data, by = "id") %>%
@@ -44,11 +44,6 @@ ggsave(
    ggplot(aes(key, Percent, fill = species)) +
    geom_col(color = "black",
             position = position_dodge(1)) +
-   geom_errorbar(
-     aes(ymin = lwr, ymax = upr),
-     width = 0.6,
-     position = position_dodge(1)
-   ) +
    scale_fill_manual(values = palette) +
    scale_x_discrete(limits = c("GyrA","GyrB","ParC","ParE",
                                "MarA","MarR","SoxR","RpoB",
@@ -95,30 +90,27 @@ ac_plot <- acquired_report %>%
     lwr = round(get_binCI(Present, Total)[1], 1),
     upr = round(get_binCI(Present, Total)[2], 1)
   ) %>%
+  mutate(species = factor(species,
+                          levels = c("Broiler","Pig","Wild bird","Red fox"))) %>%
   ggplot(aes(key, Percent, fill = species)) +
   geom_col(color = "black",
            position = position_dodge(0.9)) +
-  geom_errorbar(
-    aes(ymin = lwr, ymax = upr),
-    width = 0.6,
-    position = position_dodge(0.9)
-  ) +
   scale_fill_manual(values = palette) +
   labs(y = "Percent (%) of isolates",
        fill = NULL) +
+  guides(fill = FALSE) +
   theme_classic() +
   theme(
     axis.text = element_text(size = 12),
     axis.text.x = element_text(face = "italic"),
     axis.title.y = element_text(size = 14),
     legend.text = element_text(size = 12),
-    axis.title.x = element_blank(),
-    legend.justification = c(0, 1),
-    legend.position = c(0.82, 0.97)
-  )
+    axis.title.x = element_blank()
+  ) +
+  facet_wrap(~ species)
 
 ggsave(
-  "C:/Users/vi1511.VETINST/OneDrive - Veterinærinstituttet/Artikler/qrec_wgs/figures/acquired_per_species.tiff",
+  "C:/Users/vi1511/OneDrive - Veterinærinstituttet/Artikler/qrec_wgs/figures/acquired_per_species.tiff",
   ac_plot,
   device = "tiff",
   units = "cm",
@@ -176,30 +168,22 @@ palette <- c("Broiler" = "#4575b4",
 
 
 
-palette2 <- c("> 95" = "#6a51a3",
-                  "80 - 94" = "#9e9ac8",
-                  "50 - 79" = "#cbc9e2",
-                  "< 50" = "#f2f0f7",
-                  "1-A" = "#fc8d59",
-                  "1-I" = "#80b1d3",
+palette2 <- c(">= 95" = "white",
+                  "< 95" = "black",
+                  "1-A" = "#FB8C6F",
+                  "1-I" = "#73607D",
                   "0" = "grey95")
 
 iqtree_clean@phylo <- midpoint(iqtree_clean@phylo, labels = "support")
 
 iqtree_clean@data$Bootstrap <- factor(
   case_when(
-    iqtree_clean@data$UFboot >= 95 ~ "> 95",
-    iqtree_clean@data$UFboot < 95 &
-      iqtree_clean@data$UFboot >= 80 ~ "80 - 94",
-    iqtree_clean@data$UFboot < 80 &
-      iqtree_clean@data$UFboot >= 50 ~ "50 - 79",
-    iqtree_clean@data$UFboot < 50 ~ "< 50"
+    iqtree_clean@data$UFboot >= 95 ~ ">= 95",
+    iqtree_clean@data$UFboot < 95 ~ "< 95"
   ),
   ordered = TRUE,
-  levels = c("> 95",
-             "80 - 94",
-             "50 - 79",
-             "< 50")
+  levels = c(">= 95",
+             "< 95")
 )
 
 p1 <- ggtree(iqtree_clean,
@@ -207,8 +191,8 @@ p1 <- ggtree(iqtree_clean,
        size = 0.3) %<+% metadata +
   geom_nodepoint(aes(fill = Bootstrap),
                  pch = 21,
-                 color = "white",
-                 size = 1) +
+                 color = "black",
+                 size = 0.5) +
   geom_tiplab2(aes(label = ST),
                align = TRUE,
                size = 1.5,
@@ -222,14 +206,25 @@ p1 <- ggtree(iqtree_clean,
   scale_fill_manual(values = palette2) +
   theme(legend.position = "right")
 
-p2 <- add_heatmap(p1,
-            "data/chewbbaca/complete_results/tree_heatmap_data.txt",
-            font_size = 2,
-            colnames_offset = 3.3,
-            heatmap_offset = 0.025,
-            heatmap_width = 0.3) +
+heatmap_data <- read.table("data/chewbbaca/complete_results/tree_heatmap_data.txt",
+                           sep = "\t",
+                           header = TRUE)
+
+
+rot_tree <- rotate_tree(open_tree(p1, 10), 95)
+
+
+
+p2 <- gheatmap(rot_tree,
+         heatmap_data,
+         font.size = 2,
+         offset = 0.025,
+         colnames_offset_y = 3.3,
+         colnames_position = "top",
+         width = 0.3,
+         color = NULL) +
   scale_fill_manual(values = palette2) +
-  geom_treescale(x = 0.05, y = 0, offset = 2, fontsize = 1)
+  geom_treescale(x = 0.1, y = 286, offset = -7, fontsize = 3, linesize = 0.3)
 
 
 ggsave("figures/total_SNP_tree.png",
@@ -304,80 +299,66 @@ year_val <- c(
 
 names(palette_color) <- year_val
 
-boot_palette <- c(">= 95" = "#6a51a3",
-              "80 - 94" = "#9e9ac8",
-              "50 - 79" = "#cbc9e2",
-              "< 50" = "#f2f0f7")
+boot_palette <- c(">= 95" = "white",
+                  "< 95" = "black")
+
+palette_color <- c(palette_color, boot_palette)
 
 clean_trees_new <- lapply(clean_trees, function(x){
   x@data$Bootstrap <- factor(case_when(x@data$UFboot >= 95 ~ ">= 95",
-                                x@data$UFboot <95 & x@data$UFboot >= 80 ~ "80 - 94",
-                                x@data$UFboot < 80 & x@data$UFboot >= 50 ~ "50 - 79",
-                                x@data$UFboot < 50 ~ "< 50"),
+                                x@data$UFboot <95 ~ "< 95"),
                              ordered = TRUE,
-                             levels = c(">= 95", "80 - 94", "50 - 79", "< 50"))
+                             levels = c(">= 95", "< 95"))
   
   return(x)
 })
 
 
-p1 <- annotate_tree(
-  clean_trees_new$`Clade F`,
-  tree_metadata,
-  layout = "rectangular",
-  tree_type = "treedata",
-  line_width = 0.5,
-  label_variable = "Location",
-  color_variable = "Year",
-  shape_variable = "Species",
-  clade_label_node = 26,
-  clade_label = "3 SNP diff",
-  cladelabel_offset = 0.0005,
-  bootstrap_lab = FALSE,
-  bootstrap_var = "Bootstrap",
-  nodepoint_size = 1.5,
-  tippoint_size = 4,
-  label_offset = 0.00008,
-  color_palette = palette_color,
-  node_palette = boot_palette,
-  shape_palette = palette_shape
-) +
-  xlim(0, 0.0045) +
-  ggtitle("Clade F, ST117") +
-  scale_color_manual(values = boot_palette,
-                     breaks = c(">= 95",
-                                "80 - 94",
-                                "50 - 79",
-                                "< 50"))
+p1 <- ggtree(clean_trees_new$`Clade F`,
+       layout = "rectangular") %<+% tree_metadata +
+  geom_tiplab(aes(label = Location),
+              offset = 0.0001) +
+  geom_tippoint(aes(fill = Year,
+                    shape = Species),
+                size = 2.5) +
+  geom_nodepoint(aes(fill = Bootstrap),
+                 pch = 21) +
+  geom_cladelabel(26, label = "3 SNPs",
+                  offset = 0.0005,
+                  color = "grey50") +
+  geom_treescale() +
+  scale_shape_manual(values = c("Broiler" = 21,
+                                "Pig" = 22,
+                                "Red fox" = 23,
+                                "Wild bird" = 24)) +
+  scale_fill_manual(values = palette_color) +
+  theme(legend.position = "right") +
+  xlim(0, 0.004) +
+  ggtitle("Clade F, ST117")
 
-p2 <- annotate_tree(
-  clean_trees_new$`Clade B`,
-  tree_metadata,
-  layout = "rectangular",
-  tree_type = "treedata",
-  line_width = 0.5,
-  label_variable = "Location",
-  color_variable = "Year",
-  shape_variable = "Species",
-  clade_label_node = 16,
-  clade_label = "12 SNP diff",
-  cladelabel_offset = 0.0018,
-  bootstrap_lab = FALSE,
-  bootstrap_var = "Bootstrap",
-  nodepoint_size = 1.5,
-  tippoint_size = 4,
-  label_offset = 0.0003,
-  color_palette = palette_color,
-  node_palette = boot_palette,
-  shape_palette = palette_shape
-) + 
+p2 <- ggtree(clean_trees_new$`Clade B`,
+             layout = "rectangular") %<+% tree_metadata +
+  geom_tiplab(aes(label = Location),
+              offset = 0.0003) +
+  geom_tippoint(aes(fill = Year,
+                    shape = Species),
+                size = 2.5) +
+  geom_nodepoint(aes(fill = Bootstrap),
+                 pch = 21) +
+  geom_cladelabel(16, label = "12 SNPs",
+                  offset = 0.0018,
+                  color = "grey50") +
+  geom_treescale() +
+  scale_shape_manual(values = c("Broiler" = 21,
+                                "Pig" = 22,
+                                "Red fox" = 23,
+                                "Wild bird" = 24)) +
+  scale_fill_manual(values = palette_color) +
+  theme(legend.position = "right") +
   xlim(0, 0.015) +
-  ggtitle("Clade B, ST162") +
-  scale_color_manual(values = boot_palette,
-                     breaks = c(">= 95",
-                                "80 - 94",
-                                "50 - 79",
-                                "< 50"))
+  ggtitle("Clade B, ST162")
+
+
 
 ggsave("figures/CladeF_ST117.png",
        p1,
