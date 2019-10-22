@@ -9,112 +9,112 @@ library(cluster)
 library(ape)
 
 ## res per species
-gene_names <- names(mut_report)
+palette <- c("Acquired" = "#FB8C6F",
+             "Intrinsic" = "#73607D")
 
-gene_names <- gene_names[-c(1,2)]
+acquired_report <- read.table("data/ariba/resfinder_quin_report.txt",
+                              sep = "\t",
+                              header = TRUE,
+                              stringsAsFactors = FALSE) %>%
+  select(id, contains("qnr"), qepA4)
 
-palette <- c("Broiler" = "#4575b4",
-             "Pig" = "#74add1",
-             "Red fox" = "#f46d43",
-             "Wild bird" = "#fdae61")
+acquired_report <- acquired_report[,colSums(acquired_report != 0) > 0]
 
-ggsave(
- "C:/Users/vi1511/OneDrive - Veterinærinstituttet/Artikler/qrec_wgs/figures/res_per_species.tiff",
-  mut_report %>%
-   filter(id %not_in% ex_samples) %>%
-   left_join(isolate_data, by = "id") %>%
-   gather(key, value, gene_names) %>%
-   group_by(key, value, species) %>%
-   dplyr::count() %>%
-   ungroup() %>%
-   mutate(value = if_else(value == 1, "Present", "Absent")) %>%
-   spread(value, n, fill = 0) %>%
-   rowwise() %>%
-   mutate(
-     Total = Present + Absent,
-     Percent = round(Present / Total * 100, 1),
-     lwr = round(get_binCI(Present, Total)[1], 1),
-     upr = round(get_binCI(Present, Total)[2], 1)
-   ) %>%
-   mutate(species = factor(species,
-                           levels = c("Broiler","Pig","Wild bird","Red fox")),
-          key = paste0(toupper(substr(key, 1, 1)),
-                       substr(key, 2, nchar(key))),
-          group = if_else(key %in% c("GyrA","GyrB","ParC","ParE"), 1, 2)) %>%
-   ggplot(aes(key, Percent, fill = species)) +
-   geom_col(color = "black",
-            position = position_dodge(1)) +
-   scale_fill_manual(values = palette) +
-   scale_x_discrete(limits = c("GyrA","GyrB","ParC","ParE",
-                               "MarA","MarR","SoxR","RpoB",
-                               "RobA")) +
-   labs(y = "Percent (%) of isolates") +
-   guides(fill = FALSE) +
-   theme_classic() +
-   theme(
-     axis.text.x = element_text(
-       angle = 90,
-       size = 12,
-       hjust = 1,
-       vjust = 0.4
-     ),
-     axis.title.x = element_blank(),
-     axis.text.y = element_text(size = 12),
-     axis.title.y = element_text(size = 14),
-     strip.text = element_text(size = 12)
-   ) +
-   facet_wrap(~ species),
-  dpi = 600,
-  units = "cm",
-  device = "tiff",
-  height = 20,
-  width = 25
-)
+mut_report <- read.table("data/ariba/megares_quin_report.txt",
+                         sep = "\t",
+                         header = TRUE,
+                         stringsAsFactors = FALSE)
 
-# acquired per species
+intrinsic_genes <- names(mut_report)
 
-qnr_genes <- c("qnrA1","qnrB19","qnrS1","qnrS2","qnrS4","qepA4")
-
-ac_plot <- acquired_report %>%
-  left_join(isolate_data, by = "id") %>%
-  gather(key, value, qnr_genes) %>%
+test <- mut_report %>%
+  left_join(acquired_report, by = "id") %>%
+  select(-nt_change) %>%
+  left_join(isolate_data[, c("id", "species")], by = "id") %>%
+  gather(key, value,-c(id, species)) %>%
   group_by(key, value, species) %>%
   dplyr::count() %>%
   ungroup() %>%
   mutate(value = if_else(value == 1, "Present", "Absent")) %>%
   spread(value, n, fill = 0) %>%
   rowwise() %>%
+  mutate(Total = Present + Absent,
+         Percent = round(Present / Total * 100, 1)) %>%
   mutate(
-    Total = Present + Absent,
-    Percent = round(Present / Total * 100, 1),
-    lwr = round(get_binCI(Present, Total)[1], 1),
-    upr = round(get_binCI(Present, Total)[2], 1)
-  ) %>%
-  mutate(species = factor(species,
-                          levels = c("Broiler","Pig","Wild bird","Red fox"))) %>%
-  ggplot(aes(key, Percent, fill = species)) +
+    key2 = ifelse(key %in% intrinsic_genes, paste0(toupper(substr(key, 1, 1)), substr(key, 2, nchar(key))), key),
+    species = factor(species,
+                     levels = c("Broiler", "Pig", "Wild bird", "Red fox")),
+    group = if_else(
+      key %in% intrinsic_genes,
+      "Intrinsic",
+      "Acquired"
+    )
+  )
+
+res_plot <- ggplot(test, aes(key2, Percent, fill = group)) +
   geom_col(color = "black",
-           position = position_dodge(0.9)) +
+           size = 1,
+           position = position_dodge(1)) +
   scale_fill_manual(values = palette) +
-  labs(y = "Percent (%) of isolates",
-       fill = NULL) +
-  guides(fill = FALSE) +
+  scale_x_discrete(
+    limits = c(
+      "GyrA",
+      "GyrB",
+      "ParC",
+      "ParE",
+      "MarA",
+      "MarR",
+      "SoxR",
+      "RpoB",
+      "RobA",
+      "qnrA1",
+      "qnrB19",
+      "qnrS1",
+      "qnrS2",
+      "qnrS4",
+      "qepA4"
+    ),
+    labels = c(
+      "GyrA",
+      "GyrB",
+      "ParC",
+      "ParE",
+      "MarA",
+      "MarR",
+      "SoxR",
+      "RpoB",
+      "RobA",
+      expression(italic("qnrA1")),
+      expression(italic("qnrB19")),
+      expression(italic("qnrS1")),
+      expression(italic("qnrS2")),
+      expression(italic("qnrS4")),
+      expression(italic("qepA4"))
+    )
+  ) +
+  labs(y = "Percent (%) of isolates") +
   theme_classic() +
   theme(
-    axis.text = element_text(size = 12),
-    axis.text.x = element_text(face = "italic"),
+    axis.text.x = element_text(
+      angle = 90,
+      size = 12,
+      hjust = 1,
+      vjust = 0.4
+    ),
+    axis.title.x = element_blank(),
+    axis.text.y = element_text(size = 12),
     axis.title.y = element_text(size = 14),
-    legend.text = element_text(size = 12),
-    axis.title.x = element_blank()
+    legend.title = element_blank(),
+    strip.text = element_text(size = 12)
   ) +
-  facet_wrap(~ species)
+  facet_wrap( ~ species)
 
 ggsave(
-  "C:/Users/vi1511/OneDrive - Veterinærinstituttet/Artikler/qrec_wgs/figures/acquired_per_species.tiff",
-  ac_plot,
-  device = "tiff",
-  units = "cm",
+  "C:/Users/vi1511/OneDrive - Veterinærinstituttet/Artikler/qrec_wgs/figures/res_per_species.png",
+  res_plot,
   dpi = 600,
+  units = "cm",
+  device = "png",
   height = 20,
   width = 25
 )
@@ -359,9 +359,177 @@ p2 <- ggtree(clean_trees_new$`Clade B`,
   ggtitle("Clade B, ST162")
 
 
-
 ggsave("figures/CladeF_ST117.png",
        p1,
+       device = "png",
+       dpi = 600,
+       units = "cm",
+       height = 15,
+       width = 15)
+
+
+## Suppl. trees
+ST10_raw <- read.iqtree("data/Phylogeny/STs/ST10/iqtree/iqtree.contree")
+ST162_A_raw <- read.iqtree("data/Phylogeny/STs/ST162_A/iqtree/iqtree.contree")
+ST355_raw <- read.iqtree("data/Phylogeny/STs/ST355/iqtree/iqtree.contree")
+ST744_raw <- read.iqtree("data/Phylogeny/STs/ST744/iqtree/iqtree.contree")
+
+raw_trees <- list(ST10_raw,
+                  ST162_A_raw,
+                  ST355_raw,
+                  ST744_raw)
+
+names(raw_trees) <- c("Clade D","Clade A","Clade E","Clade C")
+
+# Clean tree tip labels
+clean_trees <- lapply(
+  raw_trees,
+  function(x) fix_tip_labels(
+    x,
+    id_data,
+    "_pilon_spades.fasta",
+    tree_type = "treedata"
+  )
+)
+
+clean_trees <- lapply(clean_trees,
+                      function(x) {
+                        x@data$Bootstrap <- factor(
+                          case_when(
+                            x@data$UFboot >= 95 ~ ">= 95",
+                            x@data$UFboot < 95 ~ "< 95"
+                          ),
+                          ordered = TRUE,
+                          levels = c(">= 95",
+                                     "< 95")
+                        )
+                        return(x)
+                      })
+
+# Specify color and shape palettes
+palette_shape <- c(
+  "Broiler" = 21,
+  "Pig" = 22,
+  "Red fox" = 23,
+  "Wild bird" = 24
+)
+
+palette_color <- brewer.pal(11, "Set3")
+
+year_val <- c(
+  "2006",
+  "2007",
+  "2008",
+  "2009",
+  "2010",
+  "2011",
+  "2012",
+  "2013",
+  "2014",
+  "2015",
+  "2016")
+
+names(palette_color) <- year_val
+
+boot_palette <- c(">= 95" = "white",
+                  "< 95" = "black")
+
+palette <- c(palette_color, boot_palette)
+
+
+# Generate trees
+options(scipen=999)
+
+t_ST10 <- ggtree(clean_trees$`Clade D`,
+       layout = "rectangular") %<+% tree_metadata +
+  geom_tiplab(aes(label = Location),
+              offset = 0.0003) +
+  geom_tippoint(aes(fill = Year,
+                    shape = Species),
+                size = 2.5) +
+  geom_nodepoint(aes(fill = Bootstrap),
+                 pch = 21) +
+  geom_cladelabel(24, label = "40 SNPs",
+                  offset = 0.0008,
+                  color = "grey50") +
+  geom_treescale() +
+  scale_shape_manual(values = c("Broiler" = 21,
+                                "Pig" = 22,
+                                "Red fox" = 23,
+                                "Wild bird" = 24)) +
+  scale_fill_manual(values = palette) +
+  theme(legend.position = "right") +
+  xlim(0, 0.007)
+
+
+t_162A <- ggtree(clean_trees$`Clade A`,
+       layout = "rectangular") %<+% tree_metadata +
+  geom_tiplab(aes(label = Location),
+              offset = 0.0003) +
+  geom_tippoint(aes(fill = Year,
+                    shape = Species),
+                size = 2.5) +
+  geom_nodepoint(aes(fill = Bootstrap),
+                 pch = 21) +
+  geom_cladelabel(26, label = "18 SNPs",
+                  offset = 0.0016,
+                  color = "grey50") +
+  geom_treescale(x = 0.008) +
+  scale_shape_manual(values = c("Broiler" = 21,
+                                "Pig" = 22,
+                                "Red fox" = 23,
+                                "Wild bird" = 24)) +
+  scale_fill_manual(values = palette) +
+  theme(legend.position = "right") +
+  xlim(0, 0.013)
+
+
+t_ST355 <- ggtree(clean_trees$`Clade E`,
+       layout = "rectangular") %<+% tree_metadata +
+  geom_tiplab(aes(label = Location),
+              offset = 0.0003) +
+  geom_tippoint(aes(fill = Year,
+                    shape = Species),
+                size = 2.5) +
+  geom_nodepoint(aes(fill = Bootstrap),
+                 pch = 21) +
+  geom_cladelabel(26, label = "6 SNPs",
+                  offset = 0.0025,
+                  color = "grey50") +
+  geom_treescale(x = 0.008) +
+  scale_shape_manual(values = c("Broiler" = 21,
+                                "Pig" = 22,
+                                "Red fox" = 23,
+                                "Wild bird" = 24)) +
+  scale_fill_manual(values = palette) +
+  theme(legend.position = "right") +
+  xlim(0, 0.032)
+
+
+t_ST744 <- ggtree(clean_trees$`Clade C`,
+       layout = "rectangular") %<+% tree_metadata +
+  geom_tiplab(aes(label = Location),
+              offset = 0.00005) +
+  geom_tippoint(aes(fill = Year,
+                    shape = Species),
+                size = 2.5) +
+  geom_nodepoint(aes(fill = Bootstrap),
+                 pch = 21) +
+  geom_cladelabel(14, label = "50 SNPs",
+                  offset = 0.0003,
+                  color = "grey50") +
+  geom_treescale() +
+  scale_shape_manual(values = c("Broiler" = 21,
+                                "Pig" = 22,
+                                "Red fox" = 23,
+                                "Wild bird" = 24)) +
+  scale_fill_manual(values = palette) +
+  theme(legend.position = "right") +
+  xlim(0, 0.0032)
+
+
+ggsave("figures/CladeC_ST744.png",
+       t_ST744,
        device = "png",
        dpi = 600,
        units = "cm",
