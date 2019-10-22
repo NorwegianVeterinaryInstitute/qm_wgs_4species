@@ -1,7 +1,7 @@
 # Supplementary material
 
 ## Information
-[Download metadata table in excel format](total_data.xlsx)
+[Download metadata table in excel format](total_data_new.xlsx)
 
 [ARIBA Flag selection table](ariba_flag_selection.xlsx)
 
