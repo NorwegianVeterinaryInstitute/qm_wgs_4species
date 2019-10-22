@@ -1,8 +1,6 @@
 # Supplementary material
 
 ## Information
-Supplementary material for the article "Closely related quinolone resistant Escherichia coli in different animal species in Norway – part of the normal flora or dissemination events?"
-
 [Download metadata table in excel format](total_data.xlsx)
 
 [ARIBA Flag selection table](ariba_flag_selection.xlsx)
@@ -10,19 +8,12 @@ Supplementary material for the article "Closely related quinolone resistant Esch
 ## R scripts
 [ARIBA results analysis script](/scripts/ARIBA_analysis.R)
 
-[Prokka sequence analysis script](/scripts/prokka_check.R)
-
 ## Notebooks
 [FastQC analysis results](/notebooks/fastqc_analysis.html)
 
 [Mash screen results](/notebooks/mash_analysis.html)
 
 [QUAST results](/notebooks/assembly_metrics.html)
-
-[Additional Tables](/notebooks/article_notebook2.html)
-
-[Clustering, phylogeny and statistics](/notebooks/Clustering-analysis.html)
-
 
 ## Reference sequences
 
