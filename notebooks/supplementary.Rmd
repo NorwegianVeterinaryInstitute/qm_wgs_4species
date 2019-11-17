@@ -60,11 +60,16 @@ isolate_data <- read.table("../data/isolate_data.txt",
                            stringsAsFactors = F) %>%
   filter(id %not_in% ex_samples)
 
-mic_data <- read.table("../data/mic_data.txt",
+mic_data <- read.table("../data/new_mic_data.txt",
                            sep = "\t",
                            header = T,
                            stringsAsFactors = F) %>%
   filter(id %not_in% ex_samples)
+
+mic_data2 <- read.table("../data/new_mic_data.txt",
+                           sep = "\t",
+                           header = T,
+                           stringsAsFactors = F)
 
 mlst_data <- read.table("../data/mlst_results.txt",
                         sep = "\t",
@@ -87,24 +92,63 @@ mut_report <- read.table("../data/ariba/megares_quin_report.txt",
 \newpage
 # Section 1: Supplementary tables
 ## Table S1: Group listing
-This table presents the groups created in the isolate selection. The "Additional Resistances" column contains how many additional antimicrobials the isolates in that group is resistant to, in addition to CIP and/or NAL.
+The table presents the different phenotypic groups used in the isolate selection, and the number of isolates from each animal species in each group. The number of resistances within each group is listed in the column "No. of resistances".
 \
 ```{r,echo=FALSE}
-mic_data %>%
-  left_join(isolate_data[,c("id","species")], by = "id") %>%
-  group_by(antres, CIP, NAL, species) %>%
-  count() %>%
-  dplyr::rename("Additional Resistances" = antres) %>%
+
+isolate_data2 <- read.table("../data/isolate_data.txt",
+                           sep = "\t",
+                           header = T,
+                           stringsAsFactors = F)
+
+mic_data2 %>%
+  left_join(isolate_data2[,c("id","species")], by = "id") %>%
+  select(antres, CIP, NAL, species) %>%
+  group_by(antres, CIP, NAL) %>%
+  mutate(n = n(),
+         Group = group_indices()) %>%
+  group_by(species, Group) %>%
+  mutate(n_species = n(),
+         new_id = paste0(species, " (", n_species, ")")) %>%
+  group_by(Group) %>%
+  summarise_all(list(func_paste)) %>%
+  select(Group, antres, CIP, NAL, new_id, n) %>%
+  dplyr::rename("No. of resistances" = antres,
+                "Total isolates" = n,
+                "Isolates per species" = new_id) %>%
   ungroup() %>%
-  mutate(Group = 1:n()) %>%
-  dplyr::select(Group, everything()) %>%
   kable(longtable = TRUE, booktabs = TRUE) %>%
   kable_styling(bootstrap_options = c("striped","hover"),
                 latex_options = c("hold_position", "repeat_header"))
 ```
 
 \newpage
-## Table S2: Prokka reference genomes
+## Table S2: Occurrence of antimicrobial resistance among the selected quinolone resistant isolates.
+The table presents the percent (%) occurrence of antimicrobial resistance among the selected isolates (_n_ = 280) identified through minimum inhibitory concentration values in the Norwegian monitoring programme from 2006 to 2017. The epidemiological cut off values used were defined by EUCAST. Azithromycin was excluded as no epidemiological cutoff value is currently available.
+\
+
+```{r, echo=FALSE, message=FALSE}
+t1 <- read_delim("../data/phenotypic_resistance.txt",
+           delim = "\t")
+
+names(t1)[2] <- paste0(names(t1)[2],"\\textsuperscript{a}")
+names(t1)[3] <- paste0(names(t1)[3],"\\textsuperscript{b}")
+names(t1)[4] <- paste0(names(t1)[4],"\\textsuperscript{c}")
+names(t1)[5] <- paste0(names(t1)[5],"\\textsuperscript{d}")
+names(t1)[6] <- paste0(names(t1)[6],"\\textsuperscript{e}")
+
+t1 %>%
+  kable(booktabs = TRUE, escape = FALSE) %>%
+  kable_styling(full_width = TRUE, position = "center") %>%
+  footnote(alphabet = c("87 isolates",
+                        "75 isolates",
+                        "52 isolates",
+                        "66 isolates",
+                        "280 isolates"))
+```
+
+\newpage
+## Table S3: Prokka reference genomes
 The genomes listed below were used as references for the Prokka annotation, and downloaded with ncbi-genome-download (https://github.com/kblin/ncbi-genome-download) with the following commands: 
 
 --refseq-category reference
@@ -123,36 +167,8 @@ The genomes listed below were used as references for the Prokka annotation, and 
 | GCF_000299455.1_ASM29945v1 | _E. coli_ O104:H4 2011C-3493 |
 
 \newpage
-## Table S3: R and R-Packages
-R version 3.6.0 [1] was used in the present study. The following packages were used:
-\
-
-| Package       | Version | Reference |
-|---------------|---------|-----------|
-| dplyr         | 0.8.0.1 |   [2]     |
-| tidyr         | 0.8.3   |   [3]     |
-| ggplot2       | 3.1.1   |   [4]     |
-| purrr         | 0.3.2   |   [5]     |
-| tibble        | 2.1.1   |   [6]     |
-| Biostrings    | 2.50.2  |   [7]     |
-| vegan         | 2.5.4   |   [8]     |
-| stringr       | 1.4.0   |   [9]     |
-| cluster       | 2.0.8   |   [10]    |
-| ape           | 5.3     |   [11]    |
-| ggtree        | 1.14.6  |   [12]    |
-| RColorBrewer  | 1.1-2   |   [13]    |
-| cowplot       | 0.9.4   |   [14]    |
-| knitr         | 1.22    |   [15]    |
-| kableExtra    | 1.1.0   |   [16]    |
-| ggsci         | 2.9     |   [17]    |
-| fastqcr       | 0.1.2   |   [18]    |
-| scales        | 1.0.0   |   [19]    |
-| viridis       | 0.5.1   |   [20]    |
-| adephylo      | 1.1-11  |   [21]    |
-
-\newpage
 ## Table S4: Identified amino acid substitutions in the QRDR of GyrA, ParC and ParE.
-The Reference nt column denote the nucleotide codon in the reference used in the MegaRes database, while the Contig nt denote the identified codon in the isolates.
+The table presents the different amino acid substitutions identified in GyrA, ParC and ParE, their respective nucleotide changes, and percent occurrence in total for each amino acid substitution. The Reference nt column denote the nucleotide codon in the reference used from the MegaRes database, while the Contig nt denote the identified codon in the isolates.
 \
 
 | Gene | AA Substitution | Reference nt |	Contig nt	| n	  | Total | Percent |
@@ -179,52 +195,52 @@ The Reference nt column denote the nucleotide codon in the reference used in the
 
 \newpage
 ## Table S5: QRDR substitutions in GyrA, ParC and ParE per animal species.
-The percentage is based on the number of isolates per species with the mutation in question (n) in relation to the total number of isolates per animal species (Total).
+The table presents each identified amino acid substitution in GyrA, ParC and ParE and their occurrence in isolates from each animal species. The percentage is based on the number of isolates per species with the mutation in question (n) in relation to the total number of isolates per animal species (Total).
 \
 
 | Gene | AA substitution | Species   | n  | Total | Percent |
 |------|-----------------|-----------|----|-------|---------|
-| GyrA | S83L	           | Broiler   | 83	| 88    |	94.3    |
+| GyrA | S83L	           | Broiler   | 83	| 87    |	95.4    |
 |	     | S83L	           | Pig	     | 50	| 75    |	66.7    |
 |	     | S83L	           | Red fox   | 37	| 52    |	71.2    |
-|	     | S83L	           | Wild bird | 34	| 65    |	52.3    |
+|	     | S83L	           | Wild bird | 34	| 66    |	51.5    |
 |	     | S83A	           | Pig	     | 4  |	75    |	5.3     |
 |	     | S83A	           | Red fox	 | 2  |	52    |	3.8     |
-|	     | S83A	           | Wild bird | 3  |	65    |	4.6     |
-|	     | D87Y	           | Broiler	 | 2  |	88    |	2.3     |
+|	     | S83A	           | Wild bird | 3  |	66    |	4.5     |
+|	     | D87Y	           | Broiler	 | 2  |	87    |	2.3     |
 |	     | D87Y	           | Pig	     | 2  |	75    |	2.7     |
 |	     | D87Y	           | Red fox	 | 1  |	52    |	1.9     |
-|	     | D87Y	           | Wild bird | 5  |	65    |	7.7     |
-|	     | D87N	           | Broiler	 | 9  |	88    |	10.2    |
+|	     | D87Y	           | Wild bird | 5  |	66    |	7.6     |
+|	     | D87N	           | Broiler	 | 9  |	87    |	10.3    |
 |	     | D87N	           | Pig	     | 5  |	75    |	6.7     |
 |	     | D87N	           | Red fox	 | 6  |	52    |	11.5    |
-|	     | D87N	           | Wild bird | 16 |	65    |	24.6    |
-|	     | D87H	           | Broiler	 | 1  |	88    |	1.1     |
+|	     | D87N	           | Wild bird | 16 |	66    |	24.2    |
+|	     | D87H	           | Broiler	 | 1  |	87    |	1.1     |
 |	     | D87G	           | Red fox	 | 2  |	52    |	3.8     |
 | ParC | S80R	           | Pig	     | 2  |	75    |	2.7     |
-|	     | S80I	           | Broiler	 | 8  |	88    |	9.1     |
+|	     | S80I	           | Broiler	 | 8  |	87    |	9.2     |
 |	     | S80I	           | Pig	     | 5  |	75    |	6.7     |
 |	     | S80I	           | Red fox   | 10 |	52    |	19.2    |
-|	     | S80I	           | Wild bird | 16	| 65    |	24.6    |
+|	     | S80I	           | Wild bird | 16	| 66    |	24.2    |
 |	     | S57T	           | Pig	     | 2  |	75    |	2.7     |
 |	     | E84V	           | Red fox	 | 1  |	52    |	1.9     |
 |	     | A56T	           | Pig	     | 4  |	75    |	5.3     |
 |	     | A56T	           | Red fox	 | 1  |	52    |	1.9     |
-|	     | A56T	           | Wild bird | 3  |	65    |	4.6     |
+|	     | A56T	           | Wild bird | 3  |	66    |	4.5     |
 | ParE | S458A	         | Pig	     | 3  |	75    |	4.0     |
 |	     | S458A	         | Red fox	 | 1  |	52    |	1.9     |
-|	     | S458A	         | Wild bird | 6  |	65    |	9.2     |
-|	     | L488M	         | Broiler	 | 1  |	88    |	1.1     |
+|	     | S458A	         | Wild bird | 6  |	66    |	9.1     |
+|	     | L488M	         | Broiler	 | 1  |	87    |	1.1     |
 |	     | L416F	         | Pig	     | 1  |	75    |	1.3     |
-|	     | H516Y	         | Wild bird | 1  |	65    |	1.5     |
-|	     | D475E	         | Broiler	 | 13 |	88    |	14.8    |
+|	     | H516Y	         | Wild bird | 1  |	66    |	1.5     |
+|	     | D475E	         | Broiler	 | 13 |	87    |	14.9    |
 |	     | D475E	         | Red fox	 | 2	| 52    |	3.8     |
 |	     | D463N	         | Pig	     | 1	| 75    |	1.3     |
-|	     | A512T	         | Broiler	 | 1	| 88    |	1.1     |
+|	     | A512T	         | Broiler	 | 1	| 87    |	1.1     |
 
 \newpage
 ## Table S6: The most abundant (n > 2) substitutions in MarA, MarR, RpoB and SoxR.
-The percentage is based on how many of the total isolates (Total) with substitutions in the respective gene (n) had the described substitution.
+The table presents the most abundant identified amino acid substitutions in MarA, MarR, RpoB and SoxR. The percentage is based on how many of the total isolates (Total) with substitutions in the respective gene (n) had the described substitution.
 \
 
 |Gene  | AA Substitution | n   | Total | Percent |
@@ -289,36 +305,99 @@ read_delim("../data/VAMPIR/amr_ac/acquired_gene_report.tsv",
   mutate(Included = if_else(grepl("mph|lnu|msr|erm",
                                   Gene,
                                   ignore.case = T) == TRUE, "No", "Yes")) %>%
+    mutate(gene2 = case_when(
+      grepl("catA|cmlA|floR|aadA|aph|dfrA|sul|tet|lnuF|msrE|mph|ermB|floR", Gene) == TRUE ~ paste0("\\textit{", Gene, "}"),
+                           Gene == "blaCMY2" ~ "\\textit{bla}\\textsubscript{CMY-2}",
+                           Gene == "blaTEM1A" ~ "\\textit{bla}\\textsubscript{TEM-1A}",
+                           Gene == "blaTEM1B" ~ "\\textit{bla}\\textsubscript{TEM-1B}",
+                           Gene == "blaTEM1C" ~ "\\textit{bla}\\textsubscript{TEM-1C}",
+                           Gene == "blaSHV2" ~ "\\textit{bla}\\textsubscript{SHV-2}",
+                           Gene == "blaSHV12" ~ "\\textit{bla}\\textsubscript{SHV-12}",
+                           Gene == "blaCTXM1" ~ "\\textit{bla}\\textsubscript{CTX-M-1}",
+                           Gene == "blaCTXM15" ~ "\\textit{bla}\\textsubscript{CTX-M-15}",
+                           Gene == "blaCTXM32" ~ "\\textit{bla}\\textsubscript{CTX-M-32}",
+                           Gene == "blaCTXM55" ~ "\\textit{bla}\\textsubscript{CTX-M-55}",
+                           Gene == "aac3IIa" ~ "\\textit{aac(3')-IIa}",
+                           Gene == "aac3IId" ~ "\\textit{aac(3')-IId}")) %>%
   arrange(-Percent) %>%
-  kable(booktabs = TRUE) %>%
-  kable_styling(bootstrap_options = c("striped", "hover")) %>%
-  column_spec(1, italic = T)
+  select(gene2, everything(), -Gene) %>%
+  rename("Gene" = gene2) %>%
+  kable(booktabs = TRUE, escape = FALSE) %>%
+  kable_styling()
 
 ```
 
 \newpage
-## Table S9: Occurrence of antimicrobial resistance among the selected quinolone resistant isolates.
-The table presents the percent (%) occurrence of AMR among the selected isolates (n=280) identified through MIC values in the Norwegian monitoring program from 2006 to 2017. The cut off values used were defined by EUCAST.
-\
 
-```{r, echo=FALSE, message=FALSE}
-t1 <- read_delim("../data/phenotypic_resistance.txt",
-           delim = "\t")
+## Table S9: Co-resistance
+The table presents the number of isolates with each combination of plasmid mediated resistance genes, excluding combinations represented by only a single isolate.
 
-names(t1)[2] <- paste0(names(t1)[2],"\\textsuperscript{a}")
-names(t1)[3] <- paste0(names(t1)[3],"\\textsuperscript{b}")
-names(t1)[4] <- paste0(names(t1)[4],"\\textsuperscript{c}")
-names(t1)[5] <- paste0(names(t1)[5],"\\textsuperscript{d}")
-names(t1)[6] <- paste0(names(t1)[6],"\\textsuperscript{e}")
+```{r, message=FALSE}
 
-t1 %>%
+merged_plasmid_genes <- read_delim("../merged_acquired_report.txt",
+                                   delim = ",") %>%
+  select(-c("mph","msrE","ermB","lnuF"))
+
+mic_data2 <- read_delim("../data/new_mic_data.txt",
+                       delim = "\t") %>%
+  filter(!id %in% ex_samples) %>%
+  select(-antres) %>%
+  mutate(SMX_R = if_else(SMX > 64, 1, 0),
+         TMP_R = if_else(TMP > 2, 1, 0),
+         CIP_R = if_else(CIP > 0.06, 1, 0),
+         TET_R = if_else(TET > 8, 1, 0),
+         NAL_R = if_else(NAL > 16, 1, 0),
+         CTX_R = if_else(CTX > 0.25, 1, 0),
+         CHL_R = if_else(CHL > 16, 1, 0),
+         AMP_R = if_else(AMP > 8, 1, 0),
+         GEN_R = if_else(GEN > 2, 1, 0)) %>%
+  select(id, contains("_R"))
+
+AM_data <- mic_data2 %>%
+  mutate(quin_R = if_else(CIP_R == 1 | NAL_R == 1, 1, 0)) %>%
+  select(-c(CIP_R, NAL_R)) %>%
+  mutate(antres = rowSums(.[,2:9])) %>%
+  mutate(MDR = if_else(antres >= 3, 1, 0)) %>%
+  left_join(isolate_data[,c("id","species")]) %>%
+  left_join(mic_data, by = "id") %>%
+  left_join(merged_plasmid_genes)
+
+
+AM_data[,c(23:39)] %>%
+  group_by_all() %>%
+  mutate(group = group_indices(),
+         n = length(group)) %>%
+  ungroup() %>%
+  mutate(PMQR = if_else(qnr == 1 | qepA == 1, 1, 0)) %>%
+  gather(gene, value, -c(n, PMQR, group)) %>%
+  filter(value == 1) %>%
+  mutate(gene2 = case_when(gene %in% c("catA","cmlA","floR",
+                                       "qepA","aadA","aph",
+                                       "dfrA","qnr","sul",
+                                       "tet") ~ paste0("\\textit{", gene, "}"),
+                           gene == "blaCMY" ~ "\\textit{bla}\\textsubscript{CMY}",
+                           gene == "blaTEM" ~ "\\textit{bla}\\textsubscript{TEM}",
+                           gene == "blaSHV" ~ "\\textit{bla}\\textsubscript{SHV}",
+                           gene == "blaCTXM" ~ "\\textit{bla}\\textsubscript{CTX-M}",
+                           gene == "aac3II" ~ "\\textit{aac(3')-II}")) %>%
+  group_by(PMQR, group) %>%
+  summarise_all(list(func_paste)) %>%
+  ungroup() %>%
+  mutate(PMQR = if_else(PMQR == 1, "PMQR positive", "PMQR negative"),
+         n = as.numeric(n)) %>%
+  filter(n > 1) %>%
+  select(PMQR, gene2, n) %>%
+  mutate(gene_n = sapply(strsplit(gene2,","),FUN=function(x){length(x[x!="Null"])})) %>%
+  arrange(PMQR, gene_n) %>%
+  select(-c(PMQR, gene_n)) %>%
+  rename("Combination of genes" = gene2,
+         "Number of isolates" = n) %>%
   kable(booktabs = TRUE, escape = FALSE) %>%
-  kable_styling(full_width = TRUE, position = "center") %>%
-  footnote(alphabet = c("87 isolates",
-                        "75 isolates",
-                        "52 isolates",
-                        "66 isolates",
-                        "280 isolates"))
+  kable_styling() %>%
+  pack_rows("PMQR Negative", 1,33, latex_gap_space = "1em") %>%
+  pack_rows("PMQR Positive", 34,43, latex_gap_space = "1em")
+
+
 ```
 
 \newpage
@@ -336,14 +415,11 @@ The table presents the summary statistics on the minimum SNP distance to the clo
 | Max	      | 75534	  | 47826 | 46955	  | 33629     |
 
 
+
+
 \newpage
 # Section 2: Supplementary figures
 
-## Figure S1: Patristic distances
-Patristic distances were calculated from the core gene alignment SNP tree. The labelled clades are the groups further investigated.
-\
-\
-\
 ```{r fig.width=12, fig.height=12, warning=FALSE, message=FALSE,echo=FALSE}
 location_data <- read_excel("../data/st_location_data.xlsx") %>%
   select(id, Kommune, Fylke) %>%
@@ -425,18 +501,48 @@ gheatmap(p,
 
 ```
 
+## Figure S1: Clade selection based on patristic distances
+The figure presents the overall phylogenetic tree (left) and the calculated patristic distances (right) as less than (<) or higher than (>) the specified cutoff value (0.003). The denoted clades were further investigated with phylogenetic analyses. Patristic distances were calculated from the core gene SNP tree.
+
 \newpage
-## Figure S2: Distance distribution plot
-The figure shows the distribution of the expected values with the observed values for each animal species denoted as an arrow. Red fox results is excluded from the plot as the observed distance values were too high to visualize.
-\
-\
-\
+
+```{r echo=FALSE}
+res_mechanisms <- read.table("../data/MDS_data.txt",
+                       sep = "\t",
+                       header = TRUE,
+                       stringsAsFactors = FALSE) %>%
+  column_to_rownames("id")
+
+bin_dist <- dist(res_mechanisms,
+                 method = "binary")
+
+nmds_df <- metaMDS(bin_dist,
+                   trymax = 200,
+                   trace = FALSE) # silence the output
+
+stressplot(nmds_df)
+
+```
+
+## Figure S2: Stressplot
+Non-metric multidimensional scaling (NMDS) was used to see if the distribution of quinolone resistance mechanisms from some sequence types were more homogenous than in other sequence types. The stressplot visualizes the goodness of fit.
+
+\newpage
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE, out.width="100%"}
+knitr::include_graphics("../figures/corr_chrom_vs_plasmid.png")
+```
+
+## Figure S3: Correlations between chromosomal genes and plasmid mediated genes
+The figure presents the Pearson correlation values for amino acid substitutions in GyrA, ParC, ParE, MarA, MarR, RpoB, and SoxR against all  plasmid mediated genes identified. Grey = negative correlation, green = positive correlation. Black lines denote 95% confidence intervals. Red stars denote significant correlations. The plasmid mediated genes are grouped based on gene family: _dfrA_ = _dfrA1_, _dfrA5_, _dfrA8_, _dfrA12_, _dfrA14_, and _dfrA17_. _tet_ = _tetA_, _tetB_, and _tetD_. _sul_ = _sul1 - 3_. _aph_ = _aph3Ia_, _aph3Ib_, and _aph6Id_. _aadA_ = _aadA1_, _aadA2_, _aadA5_, _aadA12_, _aadA13_, and _aadA22_. _AAC(3')-II_ = _AAC(3')-IIa_ and _AAC(3')-IId_. _bla_~TEM~ = _bla_~TEM-1-A~ – _bla_~TEM-1-C~. _bla_~SHV~ = _bla_~SHV-2~ and _bla_~SHV-12~. _bla_~CTX-M~ = _bla_~CTX-M-1~, _bla_~CTX-M-15~, _bla_~CTX-M-32~, and _bla_~CTX-M-55~. _qnr_ = _qnrA1_, _qnrB19_, _qnrS1_, _qnrS2_, and _qnrS4_.
+
+\newpage
+
 ```{r echo=FALSE}
 # Import distance data
 total_dist <- read_delim("../data/snp_dists/final_Roary_gubbins_SNP_dists.tab",
                          delim = "\t") %>%
   rename("isol1" = `snp-dists 0.6.3`)
-
 # Set row/column values to unique species ID
 row_id <- as.data.frame(total_dist$isol1) %>%
   rename("ref" = `total_dist$isol1`) %>%
@@ -449,7 +555,6 @@ row_id <- as.data.frame(total_dist$isol1) %>%
          isol1 = paste(species, n, sep = "_")) %>%
   ungroup() %>%
   select(isol1)
-
 col_id <- as.data.frame(names(total_dist)) %>%
   rename("ref" = `names(total_dist)`) %>%
   mutate(ref = sub("_pilon_spades.fasta", "", ref)) %>%
@@ -462,10 +567,8 @@ col_id <- as.data.frame(names(total_dist)) %>%
   ungroup() %>%
   select(isol1) %>%
   mutate(isol1 = ifelse(isol1 == "NA_1", "isol1", isol1))
-
 total_dist$isol1 <- row_id$isol1
 names(total_dist) <- col_id$isol1
-
 # Create data frame for iteration analysis
 run_df <- total_dist %>%
   gather(isol2, value, -isol1) %>%
@@ -480,14 +583,11 @@ run_df <- total_dist %>%
   rename("value" = min_val,
          "group1" = species1,
          "group2" = species2)
-
 # Run iterations
 df <- iterate(run_df, runs = 1000, method = "median") 
-
 # Filter out the observed values
 segment_data <- filter(df, iter == 0,
                        group1 %in% c("Broiler", "Pig", "Wild bird"))
-
 # Calculate non-exact p-values
 df2 <- df %>%
   group_by(group1) %>%
@@ -497,11 +597,9 @@ df2 <- df %>%
                           group1 == "Red fox" & metric <= 1388.5 ~ 1,
                           TRUE ~ 0)) %>%
   split(f = .$group1)
-
 # Plot results, exclude red fox (too high values for the plot to be visible)
 plot_df <- df %>%
   filter(group1 %in% c("Broiler", "Pig", "Wild bird"))
-
 
 ggplot(plot_df, aes(metric)) +
   geom_histogram(
@@ -533,98 +631,56 @@ ggplot(plot_df, aes(metric)) +
             y = 1,
             angle = 90) +
   guides(color = FALSE) +
-  labs(x = "Min. number of SNPs to closest isolate",
+  labs(x = "SNP distance",
        y = "Density") +
   ggtitle(label = "Distribution of expected values",
           subtitle = paste("Number of iterations: ", max(df$iter))) +
   theme(plot.title = element_text(hjust = 0)) +
   scale_color_manual(values = palette)
-
 ```
 
+## Figure S4: Iteration analysis results
+The figure presents the observed median minimum SNP distance values for each animal species (coloured arrows) in relation to the expected values from the iteration analysis. Red fox results is excluded from the plot as the observed distance values were too high to visualize. The figure shows that isolates from broilers are more closely aggregated in the phylogenetic tree than what is randomly expected.
 
 \newpage
 
-## Figure S3: Stressplot
-Non-metric multidimensional scaling (NMDS) was used to see if the distribution of quinolone resistance mechanisms from some sequence types were more homogenous than in other sequence types. The stressplot visualizes the goodness of fit.
-\
-\
-\
-```{r echo=FALSE}
-res_mechanisms <- read.table("../data/MDS_data.txt",
-                       sep = "\t",
-                       header = TRUE,
-                       stringsAsFactors = FALSE) %>%
-  column_to_rownames("id")
-
-bin_dist <- dist(res_mechanisms,
-                 method = "binary")
-
-nmds_df <- metaMDS(bin_dist,
-                   trymax = 200,
-                   trace = FALSE) # silence the output
-
-stressplot(nmds_df)
-
-```
-
-\newpage
-## Figure S4: Correlation between chromosomal genes and plasmid mediated genes
-The figure presents the Pearson correlation values for amino acid substitutions in GyrA, ParC, ParE, MarA, MarR, RpoB, and SoxR against all  plasmid mediated genes identified. Grey = negative correlation, green = positive correlation. Black lines denote 95% confidence intervals. Red stars denote significant correlations. The plasmid mediated genes are grouped based on gene family: _dfrA_ = _dfrA1_, _dfrA5_, _dfrA8_, _dfrA12_, _dfrA14_, and _dfrA17_. _tet_ = _tetA_, _tetB_, and _tetD_. _sul_ = _sul1 - 3_. _aph_ = _aph3Ia_, _aph3Ib_, and _aph6Id_. _aadA_ = _aadA1_, _aadA2_, _aadA5_, _aadA12_, _aadA13_, and _aadA22_. _AAC(3')-II_ = _AAC(3')-IIa_ and _AAC(3')-IId_. _bla_~TEM~ = _bla_~TEM-1-A~ – _bla_~TEM-1-C~. _bla_~SHV~ = _bla_~SHV-2~ and _bla_~SHV-12~. _bla_~CTX-M~ = _bla_~CTX-M-1~, _bla_~CTX-M-15~, _bla_~CTX-M-32~, and _bla_~CTX-M-55~. _qnr_ = _qnrA1_, _qnrB19_, _qnrS1_, _qnrS2_, and _qnrS4_.
-
-
-```{r, echo=FALSE, warning=FALSE, message=FALSE, out.width="100%"}
-knitr::include_graphics("../figures/corr_chrom_vs_plasmid.png")
-```
-
-
-\newpage
-
-## Figure S5: Maximum likelihood tree, Clade A
-The values on each node is the UF Bootstrap values calculated by IQTree. The tip point shape represent the animal species of origin, and the color the year of isolation. The tip labels represent the location of the isolate; the first number represent the county, and the second number the municipality. Evolutionary model: K2P+ASC+R2. Shared genome: 88.4%.
-\
-\
-\
 ```{r message=FALSE, warning=FALSE, echo=FALSE, out.width="90%"}
 knitr::include_graphics("../figures/complete_st_trees/CladeA_ST162A.png")
 ```
 
+## Figure S5: Maximum likelihood tree, Clade A
+The values on each node is the UF Bootstrap values calculated by IQTree. The tip point shape represent the animal species of origin, and the color the year of isolation. The tip labels represent the location of the isolate; the first number represent the county, and the second number the municipality. Evolutionary model: K2P+ASC+R2. Shared genome: 88.4%.
+
 \newpage
-## Figure S6: Maximum likelihood tree, Clade C
-The values on each node is the UF Bootstrap values calculated by IQTree. The tip point shape represent the animal species of origin, and the color the year of isolation. The tip labels represent the location of the isolate; the first number represent the county, and the second number the municipality. Evolutionary model: K3P+ASC. Shared genome: 88.4%.
-\
-\
-\
+
 ```{r message=FALSE, warning=FALSE, echo=FALSE, out.width="90%"}
 knitr::include_graphics("../figures/complete_st_trees/CladeC_ST744.png")
 ```
 
+## Figure S6: Maximum likelihood tree, Clade C
+The values on each node is the UF Bootstrap values calculated by IQTree. The tip point shape represent the animal species of origin, and the color the year of isolation. The tip labels represent the location of the isolate; the first number represent the county, and the second number the municipality. Evolutionary model: K3P+ASC. Shared genome: 88.4%.
+
+
 \newpage
-## Figure S7: Maximum likelihood tree, Clade D
-The values on each node is the UF Bootstrap values calculated by IQTree. The tip point shape represent the animal species of origin, and the color the year of isolation. The tip labels represent the location of the isolate; the first number represent the county, and the second number the municipality. Evolutionary model: K2P+ASC+R2. Shared genome: 87.2%.
-\
-\
-\
+
 ```{r message=FALSE, warning=FALSE, echo=FALSE, out.width="90%"}
 knitr::include_graphics("../figures/complete_st_trees/CladeD_ST10.png")
 ```
 
+## Figure S7: Maximum likelihood tree, Clade D
+The values on each node is the UF Bootstrap values calculated by IQTree. The tip point shape represent the animal species of origin, and the color the year of isolation. The tip labels represent the location of the isolate; the first number represent the county, and the second number the municipality. Evolutionary model: K2P+ASC+R2. Shared genome: 87.2%.
+
 \newpage
-## Figure S8: Maximum likelihood tree, Clade E
-The values on each node is the UF Bootstrap values calculated by IQTree. The tip point shape represent the animal species of origin, and the color the year of isolation. The tip labels represent the location of the isolate; the first number represent the county, and the second number the municipality. Evolutionary model: K3P+ASC. Shared genome: 90.2%.
-\
-\
-\
+
 ```{r message=FALSE, warning=FALSE, echo=FALSE, out.width="90%"}
 knitr::include_graphics("../figures/complete_st_trees/CladeE_ST355.png")
 ```
 
+## Figure S8: Maximum likelihood tree, Clade E
+The values on each node is the UF Bootstrap values calculated by IQTree. The tip point shape represent the animal species of origin, and the color the year of isolation. The tip labels represent the location of the isolate; the first number represent the county, and the second number the municipality. Evolutionary model: K3P+ASC. Shared genome: 90.2%.
 
 \newpage
 # Section 3: Metadata and reference sequences
-
-The whole of the supplementary material can also be accessed on github (https://norwegianveterinaryinstitute.github.io/qm_wgs_4species/).
-
 
 ## 3.1: Isolate information and metadata
 Metadata for all 280 included isolates can be downloaded here:
@@ -645,7 +701,7 @@ https://norwegianveterinaryinstitute.github.io/qm_wgs_4species/notebooks/mash_an
 
 
 ## 3.4: QRDR determination of GyrB, ParC and ParE
-The K12 reference sequence on the whole protein is listed as the first entry in each file. The rest of the fasta entries are taken from Jiménez Gómez et al. 2004.
+The K12 reference sequence on the whole protein is listed as the first entry in each file. The rest of the fasta entries are taken from Jiménez Gómez et al. 2004 [1].
 
 GyrB:
 
@@ -689,44 +745,5 @@ https://norwegianveterinaryinstitute.github.io/qm_wgs_4species/notebooks/assembl
 
 \newpage
 # References
-[1] RCoreTeam. R: A language and environment for statistical computing. R Foundation for Statistical Computing, Vienna, Austria. URL https://www.R-project.org/. 2018.
 
-[2] Wickham H, François R, Henry L, Müller K. dplyr: A Grammar of Data Manipulation [Internet]. 2019. Available from: https://cran.r-project.org/package=dplyr
-
-[3] Wickham H, Henry L. tidyr: Easily Tidy Data with “spread()” and “gather()” Functions [Internet]. 2019. Available from: https://cran.r-project.org/package=tidyr
-
-[4] Wickham H, Chang W, Henry L, Pedersen TL, Takahashi K, Wilke C, et al. ggplot2: Create Elegant Data Visualisations Using the Grammar of Graphics [Internet]. 2019. Available from: https://cran.r-project.org/package=ggplot2
-
-[5] Henry L, Wickham H. purrr: Functional Programming Tools [Internet]. 2019. Available from: https://cran.r-project.org/package=purrr
-
-[6] Müller K, Wickham H. tibble: Simple Data Frames [Internet]. 2019. Available from: https://cran.r-project.org/package=tibble
-
-[7] Pagès H, Aboyoun P, Gentleman R, DebRoy S. Biostrings: Efficient manipulation of biological strings. 2019.
-
-[8] Oksanen J, Blanchet FG, Friendly M, Kindt R, Legendre P, McGlinn D, et al. vegan: Community Ecology Package [Internet]. 2019. Available from: https://cran.r-project.org/package=vegan
-
-[9] Wickham H. stringr: Simple, Consistent Wrappers for Common String Operations [Internet]. 2019. Available from: https://cran.r-project.org/package=stringr
-
-[10] Maechler M, Rousseeuw P, Struyf A, Hubert M. cluster: “Finding Groups in Data”: Cluster Analysis Extended Rousseeuw et al. [Internet]. 2019. Available from: https://cran.r-project.org/package=cluster
-
-[11] Paradis E, Blomberg S, Bolker B, Brown J, Claude J, Cuong HS, et al. ape: Analyses of Phylogenetics and Evolution [Internet]. 2019. Available from: https://cran.r-project.org/package=ape
-
-[12] Yu G, Smith DK, Zhu H, Guan Y, Lam TT-Y. Ggtree: a package for visualization and annotation of phylogenetic trees with their covariates and other associated data. McInerny G, editor. Methods Ecol Evol [Internet]. 2017 Jan;8(1):28–36. Available from: http://doi.wiley.com/10.1111/2041-210X.12628
-
-[13] Neuwirth E. RColorBrewer: ColorBrewer Palettes [Internet]. 2014. Available from: https://cran.r-project.org/package=RColorBrewer
-
-[14] Wilke CO. cowplot: Streamlined Plot Theme and Plot Annotations for “ggplot2” [Internet]. 2019. Available from: https://cran.r-project.org/package=cowplot
-
-[15] Xie Y. knitr: A General-Purpose Package for Dynamic Report Generation in R [Internet]. 2019. Available from: https://cran.r-project.org/package=knitr
-
-[16] Zhu H. kableExtra: Construct Complex Table with “kable” and Pipe Syntax [Internet]. 2019. Available from: https://cran.r-project.org/package=kableExtra
-
-[17] Xiao N. ggsci: Scientific Journal and Sci-Fi Themed Color Palettes for “ggplot2” [Internet]. 2018. Available from: https://cran.r-project.org/package=ggsci
-
-[18] Kassambara A. fastqcr: Quality Control of Sequencing Data [Internet]. 2019. Available from: https://cran.r-project.org/package=fastqcr
-
-[19] Wickham H. scales: Scale Functions for Visualization [Internet]. 2018. Available from: https://cran.r-project.org/package=scales
-
-[20] Garnier S. viridis: Default Color Maps from “matplotlib” [Internet]. 2018. Available from: https://cran.r-project.org/package=viridis
-
-[21] Jombart T., Dray S. (2008) adephylo: exploratory analyses for the phylogenetic comparative method.
+[1] P.A. JG, J.E. G de los R, A. RM, P.  de PR, R. GA. 2004. Molecular basis of quinolone resistance in Escherichia coli from wild birds. Canadian Journal of Veterinary Research 68:229–231
